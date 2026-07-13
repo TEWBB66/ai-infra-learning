@@ -1,0 +1,10 @@
+2026-07-14T09:00:01Z request_id=req-001 model=qwen2.5-7b endpoint=/v1/chat/completions status=200 latency_ms=128 tokens_in=320 tokens_out=84
+2026-07-14T09:00:03Z request_id=req-002 model=qwen2.5-7b endpoint=/v1/chat/completions status=200 latency_ms=245 tokens_in=512 tokens_out=120
+2026-07-14T09:00:05Z request_id=req-003 model=bge-reranker endpoint=/v1/rerank status=200 latency_ms=76 tokens_in=180 tokens_out=0
+2026-07-14T09:00:08Z request_id=req-004 model=qwen2.5-7b endpoint=/v1/chat/completions status=500 latency_ms=910 tokens_in=640 tokens_out=0
+2026-07-14T09:00:12Z request_id=req-005 model=qwen2.5-7b endpoint=/v1/chat/completions status=200 latency_ms=188 tokens_in=256 tokens_out=95
+2026-07-14T09:00:14Z request_id=req-006 model=bge-reranker endpoint=/v1/rerank status=200 latency_ms=64 tokens_in=220 tokens_out=0
+2026-07-14T09:00:17Z request_id=req-007 model=qwen2.5-14b endpoint=/v1/chat/completions status=200 latency_ms=430 tokens_in=900 tokens_out=180
+2026-07-14T09:00:21Z request_id=req-008 model=qwen2.5-14b endpoint=/v1/chat/completions status=429 latency_ms=35 tokens_in=0 tokens_out=0
+2026-07-14T09:00:25Z request_id=req-009 model=qwen2.5-7b endpoint=/v1/chat/completions status=200 latency_ms=156 tokens_in=300 tokens_out=70
+2026-07-14T09:00:29Z request_id=req-010 model=bge-reranker endpoint=/v1/rerank status=200 latency_ms=82 tokens_in=260 tokens_out=0
