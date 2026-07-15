@@ -14,6 +14,13 @@ def parse_log_line(line):
 
     return record
 
+def percentile(values, percent):
+    if not values:
+        return 0
+
+    sorted_values = sorted(values)
+    index = round((percent / 100) * (len(sorted_values) - 1))
+    return sorted_values[index]
 
 def analyze_logs(log_path):
     records = []
@@ -29,11 +36,38 @@ def analyze_logs(log_path):
 
     latencies = [int(record["latency_ms"]) for record in records]
     avg_latency = sum(latencies) / len(latencies)
+    p95_latency = percentile(latencies, 95)
+    p99_latency = percentile(latencies, 99)
 
     success_latencies = [int(record["latency_ms"]) for record in success_records]
     avg_success_latency = sum(success_latencies) / len(success_latencies)
 
     slow_requests = sum(1 for latency in latencies if latency > 200)
+    metrics_by_model = {}
+
+    for record in records:
+        model = record["model"]
+        latency = int(record["latency_ms"])
+        status = int(record["status"])
+
+        if model not in metrics_by_model:
+            metrics_by_model[model] = {
+                "request_count": 0,
+                "error_count": 0,
+                "latencies": [],
+            }
+
+        metrics_by_model[model]["request_count"] += 1
+        metrics_by_model[model]["latencies"].append(latency)
+
+        if status >= 400:
+            metrics_by_model[model]["error_count"] += 1
+
+    for model, metrics in metrics_by_model.items():
+        model_latencies = metrics["latencies"]
+        metrics["avg_latency_ms"] = round(sum(model_latencies) / len(model_latencies), 2)
+        metrics["p95_latency_ms"] = percentile(model_latencies, 95)
+        del metrics["latencies"]
 
     slowest_records = sorted(
         records,
@@ -51,13 +85,16 @@ def analyze_logs(log_path):
         })
 
     result = {
-        "总请求数": total_requests,
-        "成功请求数": len(success_records),
-        "失败请求数": failed_requests,
-        "平均延迟ms": round(avg_latency, 2),
-        "成功请求平均延迟ms": round(avg_success_latency, 2),
-        "慢请求数量": slow_requests,
-        "最慢的3条请求": slowest_requests,
+        "total_requests": total_requests,
+        "success_requests": len(success_records),
+        "failed_requests": failed_requests,
+        "avg_latency_ms": round(avg_latency, 2),
+        "p95_latency_ms": p95_latency,
+        "p99_latency_ms": p99_latency,
+        "avg_success_latency_ms": round(avg_success_latency, 2),
+        "slow_request_count": slow_requests,
+        "top_3_slowest_requests": slowest_requests,
+        "metrics_by_model": metrics_by_model,
     }
 
     return result

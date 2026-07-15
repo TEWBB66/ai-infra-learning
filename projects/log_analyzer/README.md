@@ -8,9 +8,11 @@ It can report:
 - successful requests
 - failed requests
 - average latency
+- P95 and P99 latency
 - average latency of successful requests
 - slow request count
 - top 3 slowest requests
+- per-model request count, error count, average latency, and P95 latency
 
 Run:
 
