@@ -33,6 +33,8 @@ def analyze_logs(log_path):
     total_requests = len(records)
     success_records = [record for record in records if record["status"] == "200"]
     failed_requests = total_requests - len(success_records)
+    success_rate = len(success_records) / total_requests
+    error_rate = failed_requests / total_requests
 
     latencies = [int(record["latency_ms"]) for record in records]
     avg_latency = sum(latencies) / len(latencies)
@@ -67,6 +69,10 @@ def analyze_logs(log_path):
         model_latencies = metrics["latencies"]
         metrics["avg_latency_ms"] = round(sum(model_latencies) / len(model_latencies), 2)
         metrics["p95_latency_ms"] = percentile(model_latencies, 95)
+        metrics["error_rate"] = round(
+            metrics["error_count"] / metrics["request_count"],
+            4,
+        )
         del metrics["latencies"]
 
     slowest_records = sorted(
@@ -88,6 +94,8 @@ def analyze_logs(log_path):
         "total_requests": total_requests,
         "success_requests": len(success_records),
         "failed_requests": failed_requests,
+        "success_rate": round(success_rate, 4),
+        "error_rate": round(error_rate, 4),
         "avg_latency_ms": round(avg_latency, 2),
         "p95_latency_ms": p95_latency,
         "p99_latency_ms": p99_latency,

@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from typing import Optional
 
 from projects.log_analyzer.analyze_logs import analyze_logs, parse_log_line
@@ -31,6 +31,22 @@ def health_check():
 def get_log_metrics():
     return analyze_logs(LOG_PATH)
 
+@app.get("/metrics/models")
+def get_model_metrics(model_name: Optional[str] = None):
+    metrics = analyze_logs(LOG_PATH)
+    metrics_by_model = metrics["metrics_by_model"]
+    if model_name is None:
+        return {
+            "metrics_by_model": metrics_by_model,
+        }
+        
+    if model_name not in metrics_by_model:
+        raise HTTPException(status_code=404, detail="model not found")
+
+    return {
+    "model_name": model_name,
+    "metrics": metrics_by_model[model_name],
+}
 
 @app.get("/metrics/slow")
 def get_slow_requests(threshold_ms: int = 200):
