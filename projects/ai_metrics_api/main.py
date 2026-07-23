@@ -1,5 +1,11 @@
-from fastapi import FastAPI, HTTPException
+from datetime import datetime, timezone
 from typing import Optional
+from uuid import uuid4
+import random
+import time
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
 
 from projects.log_analyzer.analyze_logs import analyze_logs, parse_log_line
 
@@ -7,6 +13,54 @@ app = FastAPI()
 
 LOG_PATH = "data/day02/inference.log"
 
+class MockInferRequest(BaseModel):
+    model: str = "qwen2.5-7b"
+    endpoint: str = "/v1/mock-infer"
+    tokens_in: int = Field(default=256, ge=0)
+    tokens_out: int = Field(default=80, ge=0)
+    force_status: Optional[int] = None
+
+
+def estimate_latency_ms(model: str, tokens_in: int, tokens_out: int) -> int:
+    base_latency_by_model = {
+        "qwen2.5-7b": 120,
+        "qwen2.5-14b": 260,
+        "bge-reranker": 60,
+    }
+
+    base_latency = base_latency_by_model.get(model, 180)
+    token_latency = int(tokens_in * 0.08 + tokens_out * 0.6)
+    jitter = random.randint(0, 80)
+
+    return base_latency + token_latency + jitter
+
+
+def build_log_line(
+    request_id: str,
+    model: str,
+    endpoint: str,
+    status: int,
+    latency_ms: int,
+    tokens_in: int,
+    tokens_out: int,
+) -> str:
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    return (
+        f"{timestamp} "
+        f"request_id={request_id} "
+        f"model={model} "
+        f"endpoint={endpoint} "
+        f"status={status} "
+        f"latency_ms={latency_ms} "
+        f"tokens_in={tokens_in} "
+        f"tokens_out={tokens_out}"
+    )
+
+
+def append_log_line(line: str):
+    with open(LOG_PATH, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
 
 def load_records():
     records = []
@@ -26,6 +80,47 @@ def health_check():
         "service": "ai-metrics-api",
     }
 
+@app.post("/v1/mock-infer")
+def mock_infer(request: MockInferRequest):
+    allowed_status_codes = {200, 400, 429, 500}
+    if request.force_status is not None and request.force_status not in allowed_status_codes:
+        raise HTTPException(
+            status_code=400,
+            detail="force_status must be one of 200, 400, 429, 500",
+        )
+    request_id = f"req-{uuid4().hex[:8]}"
+    latency_ms = estimate_latency_ms(
+        request.model,
+        request.tokens_in,
+        request.tokens_out,
+    )
+
+    if request.force_status is not None:
+        status = request.force_status
+    else:
+        status = 200
+
+    time.sleep(latency_ms / 1000)
+
+    log_line = build_log_line(
+        request_id=request_id,
+        model=request.model,
+        endpoint=request.endpoint,
+        status=status,
+        latency_ms=latency_ms,
+        tokens_in=request.tokens_in,
+        tokens_out=request.tokens_out,
+    )
+    append_log_line(log_line)
+
+    return {
+        "request_id": request_id,
+        "model": request.model,
+        "status": status,
+        "latency_ms": latency_ms,
+        "tokens_in": request.tokens_in,
+        "tokens_out": request.tokens_out,
+    }
 
 @app.get("/metrics/logs")
 def get_log_metrics():

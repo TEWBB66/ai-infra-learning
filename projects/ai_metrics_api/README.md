@@ -15,6 +15,8 @@ This project provides a FastAPI service for analyzing simulated AI inference log
 - per-model error rate
 - model-level filtering
 - 404 response for unknown model names
+- mock inference endpoint that generates request logs
+- request validation for token counts and forced status codes
 
 ## Endpoints
 
@@ -26,6 +28,7 @@ This project provides a FastAPI service for analyzing simulated AI inference log
 - `GET /metrics/errors?status_code=500`: error requests filtered by status code
 - `GET /metrics/models`: per-model metrics
 - `GET /metrics/models?model_name=qwen2.5-7b`: metrics for a specific model
+- `POST /v1/mock-infer`: simulate an inference request and append one log line
 
 ## Run
 
@@ -41,6 +44,17 @@ curl -s http://127.0.0.1:8000/metrics/logs | jq
 curl -s http://127.0.0.1:8000/metrics/models | jq
 curl -s "http://127.0.0.1:8000/metrics/models?model_name=qwen2.5-7b" | jq
 curl -i "http://127.0.0.1:8000/metrics/models?model_name=unknown-model"
+curl -s -X POST http://127.0.0.1:8000/v1/mock-infer \
+  -H "Content-Type: application/json" \
+  -d '{"model":"qwen2.5-7b","tokens_in":300,"tokens_out":80}' | jq
+
+curl -i -X POST http://127.0.0.1:8000/v1/mock-infer \
+  -H "Content-Type: application/json" \
+  -d '{"model":"qwen2.5-7b","tokens_in":-1,"tokens_out":0}'
+
+curl -i -X POST http://127.0.0.1:8000/v1/mock-infer \
+  -H "Content-Type: application/json" \
+  -d '{"model":"qwen2.5-7b","tokens_in":10,"tokens_out":0,"force_status":999}'
 ```
 
 ## API Docs
