@@ -13,6 +13,65 @@ app = FastAPI()
 
 LOG_PATH = "data/day02/inference.log"
 
+def add_alert(alerts, level, scope, metric, message, actual, threshold):
+    alerts.append({
+        "level": level,
+        "scope": scope,
+        "metric": metric,
+        "message": message,
+        "actual": actual,
+        "threshold": threshold,
+    })
+
+
+def build_alerts(metrics):
+    alerts = []
+
+    error_rate = metrics["error_rate"]
+    p95_latency_ms = metrics["p95_latency_ms"]
+    slow_request_count = metrics["slow_request_count"]
+
+    if error_rate >= 0.2:
+        add_alert(alerts, "critical", "service", "error_rate", "service error rate is too high", error_rate, 0.2)
+    elif error_rate >= 0.1:
+        add_alert(alerts, "warning", "service", "error_rate", "service error rate is elevated", error_rate, 0.1)
+
+    if p95_latency_ms >= 800:
+        add_alert(alerts, "critical", "service", "p95_latency_ms", "service P95 latency is too high", p95_latency_ms, 800)
+    elif p95_latency_ms >= 400:
+        add_alert(alerts, "warning", "service", "p95_latency_ms", "service P95 latency is elevated", p95_latency_ms, 400)
+
+    if slow_request_count >= 5:
+        add_alert(alerts, "critical", "service", "slow_request_count", "too many slow requests", slow_request_count, 5)
+    elif slow_request_count >= 3:
+        add_alert(alerts, "warning", "service", "slow_request_count", "slow requests are increasing", slow_request_count, 3)
+
+    for model_name, model_metrics in metrics["metrics_by_model"].items():
+        model_error_rate = model_metrics["error_rate"]
+        model_p95_latency_ms = model_metrics["p95_latency_ms"]
+
+        if model_error_rate >= 0.3:
+            add_alert(alerts, "critical", model_name, "error_rate", "model error rate is too high", model_error_rate, 0.3)
+        elif model_error_rate >= 0.2:
+            add_alert(alerts, "warning", model_name, "error_rate", "model error rate is elevated", model_error_rate, 0.2)
+
+        if model_p95_latency_ms >= 800:
+            add_alert(alerts, "critical", model_name, "p95_latency_ms", "model P95 latency is too high", model_p95_latency_ms, 800)
+        elif model_p95_latency_ms >= 400:
+            add_alert(alerts, "warning", model_name, "p95_latency_ms", "model P95 latency is elevated", model_p95_latency_ms, 400)
+
+    service_status = "healthy"
+    if any(alert["level"] == "critical" for alert in alerts):
+        service_status = "critical"
+    elif alerts:
+        service_status = "warning"
+
+    return {
+        "service_status": service_status,
+        "alert_count": len(alerts),
+        "alerts": alerts,
+    }
+
 class MockInferRequest(BaseModel):
     model: str = "qwen2.5-7b"
     endpoint: str = "/v1/mock-infer"
@@ -191,3 +250,8 @@ def get_error_requests(status_code: Optional[int] = None):
         "error_request_count": len(error_records),
         "error_requests": error_records,
     }
+
+@app.get("/metrics/alerts")
+def get_alerts():
+    metrics = analyze_logs(LOG_PATH)
+    return build_alerts(metrics)

@@ -17,6 +17,8 @@ This project provides a FastAPI service for analyzing simulated AI inference log
 - 404 response for unknown model names
 - mock inference endpoint that generates request logs
 - request validation for token counts and forced status codes
+- service-level and model-level alerting
+- warning and critical alert levels
 
 ## Endpoints
 
@@ -29,6 +31,7 @@ This project provides a FastAPI service for analyzing simulated AI inference log
 - `GET /metrics/models`: per-model metrics
 - `GET /metrics/models?model_name=qwen2.5-7b`: metrics for a specific model
 - `POST /v1/mock-infer`: simulate an inference request and append one log line
+- `GET /metrics/alerts`: service and model alert status
 
 ## Run
 
@@ -55,6 +58,7 @@ curl -i -X POST http://127.0.0.1:8000/v1/mock-infer \
 curl -i -X POST http://127.0.0.1:8000/v1/mock-infer \
   -H "Content-Type: application/json" \
   -d '{"model":"qwen2.5-7b","tokens_in":10,"tokens_out":0,"force_status":999}'
+curl -s http://127.0.0.1:8000/metrics/alerts | jq
 ```
 
 ## API Docs
