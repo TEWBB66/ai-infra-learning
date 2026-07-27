@@ -19,6 +19,7 @@ This project provides a FastAPI service for analyzing simulated AI inference log
 - request validation for token counts and forced status codes
 - service-level and model-level alerting
 - warning and critical alert levels
+- automated tests for API endpoints and log analysis
 
 ## Endpoints
 
@@ -39,7 +40,7 @@ This project provides a FastAPI service for analyzing simulated AI inference log
 python -m uvicorn projects.ai_metrics_api.main:app --host 0.0.0.0 --port 8000
 ```
 
-## Test
+## Manual API Test
 
 ```bash
 curl -s http://127.0.0.1:8000/health | jq
@@ -47,6 +48,7 @@ curl -s http://127.0.0.1:8000/metrics/logs | jq
 curl -s http://127.0.0.1:8000/metrics/models | jq
 curl -s "http://127.0.0.1:8000/metrics/models?model_name=qwen2.5-7b" | jq
 curl -i "http://127.0.0.1:8000/metrics/models?model_name=unknown-model"
+
 curl -s -X POST http://127.0.0.1:8000/v1/mock-infer \
   -H "Content-Type: application/json" \
   -d '{"model":"qwen2.5-7b","tokens_in":300,"tokens_out":80}' | jq
@@ -58,8 +60,26 @@ curl -i -X POST http://127.0.0.1:8000/v1/mock-infer \
 curl -i -X POST http://127.0.0.1:8000/v1/mock-infer \
   -H "Content-Type: application/json" \
   -d '{"model":"qwen2.5-7b","tokens_in":10,"tokens_out":0,"force_status":999}'
+
 curl -s http://127.0.0.1:8000/metrics/alerts | jq
 ```
+
+## Automated Test
+
+```bash
+python -m pytest -q
+```
+
+Current test coverage includes:
+
+- log analyzer summary metrics
+- health check endpoint
+- log metrics endpoint
+- model metrics endpoint
+- model filtering
+- alerting endpoint
+- mock inference success path
+- mock inference validation errors
 
 ## API Docs
 
