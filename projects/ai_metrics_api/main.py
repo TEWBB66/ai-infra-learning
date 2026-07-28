@@ -9,9 +9,23 @@ from pydantic import BaseModel, Field
 
 from projects.log_analyzer.analyze_logs import analyze_logs, parse_log_line
 
-app = FastAPI()
+from projects.ai_metrics_api.config import (
+    ALLOWED_FORCE_STATUS_CODES,
+    DEFAULT_SLOW_THRESHOLD_MS,
+    LOG_PATH,
+    MODEL_ERROR_RATE_CRITICAL_THRESHOLD,
+    MODEL_ERROR_RATE_WARNING_THRESHOLD,
+    MODEL_P95_LATENCY_CRITICAL_MS,
+    MODEL_P95_LATENCY_WARNING_MS,
+    SERVICE_ERROR_RATE_CRITICAL_THRESHOLD,
+    SERVICE_ERROR_RATE_WARNING_THRESHOLD,
+    SERVICE_P95_LATENCY_CRITICAL_MS,
+    SERVICE_P95_LATENCY_WARNING_MS,
+    SERVICE_SLOW_REQUEST_CRITICAL_COUNT,
+    SERVICE_SLOW_REQUEST_WARNING_COUNT,
+)
 
-LOG_PATH = "data/day02/inference.log"
+app = FastAPI()
 
 def add_alert(alerts, level, scope, metric, message, actual, threshold):
     alerts.append({
@@ -31,34 +45,34 @@ def build_alerts(metrics):
     p95_latency_ms = metrics["p95_latency_ms"]
     slow_request_count = metrics["slow_request_count"]
 
-    if error_rate >= 0.2:
-        add_alert(alerts, "critical", "service", "error_rate", "service error rate is too high", error_rate, 0.2)
-    elif error_rate >= 0.1:
-        add_alert(alerts, "warning", "service", "error_rate", "service error rate is elevated", error_rate, 0.1)
+    if error_rate >= SERVICE_ERROR_RATE_CRITICAL_THRESHOLD:
+        add_alert(alerts,"critical","service","error_rate","service error rate is too high",error_rate,SERVICE_ERROR_RATE_CRITICAL_THRESHOLD)
+    elif error_rate >= SERVICE_ERROR_RATE_WARNING_THRESHOLD:
+        add_alert(alerts,"warning","service","error_rate","service error rate is elevated", error_rate,SERVICE_ERROR_RATE_WARNING_THRESHOLD)
 
-    if p95_latency_ms >= 800:
-        add_alert(alerts, "critical", "service", "p95_latency_ms", "service P95 latency is too high", p95_latency_ms, 800)
-    elif p95_latency_ms >= 400:
-        add_alert(alerts, "warning", "service", "p95_latency_ms", "service P95 latency is elevated", p95_latency_ms, 400)
+    if p95_latency_ms >= SERVICE_P95_LATENCY_CRITICAL_MS:
+        add_alert(alerts, "critical", "service", "p95_latency_ms", "service P95 latency is too high", p95_latency_ms, SERVICE_P95_LATENCY_CRITICAL_MS)
+    elif p95_latency_ms >= SERVICE_P95_LATENCY_WARNING_MS:
+        add_alert(alerts, "warning", "service", "p95_latency_ms", "service P95 latency is elevated", p95_latency_ms, SERVICE_P95_LATENCY_WARNING_MS)
 
-    if slow_request_count >= 5:
-        add_alert(alerts, "critical", "service", "slow_request_count", "too many slow requests", slow_request_count, 5)
-    elif slow_request_count >= 3:
-        add_alert(alerts, "warning", "service", "slow_request_count", "slow requests are increasing", slow_request_count, 3)
+    if slow_request_count >= SERVICE_SLOW_REQUEST_CRITICAL_COUNT:
+        add_alert(alerts, "critical", "service", "slow_request_count", "too many slow requests", slow_request_count, SERVICE_SLOW_REQUEST_CRITICAL_COUNT)
+    elif slow_request_count >= SERVICE_SLOW_REQUEST_WARNING_COUNT:
+        add_alert(alerts, "warning", "service", "slow_request_count", "slow requests are increasing", slow_request_count, SERVICE_SLOW_REQUEST_WARNING_COUNT)
 
     for model_name, model_metrics in metrics["metrics_by_model"].items():
         model_error_rate = model_metrics["error_rate"]
         model_p95_latency_ms = model_metrics["p95_latency_ms"]
 
-        if model_error_rate >= 0.3:
-            add_alert(alerts, "critical", model_name, "error_rate", "model error rate is too high", model_error_rate, 0.3)
-        elif model_error_rate >= 0.2:
-            add_alert(alerts, "warning", model_name, "error_rate", "model error rate is elevated", model_error_rate, 0.2)
+        if model_error_rate >= MODEL_ERROR_RATE_CRITICAL_THRESHOLD:
+            add_alert(alerts, "critical", model_name, "error_rate", "model error rate is too high", model_error_rate, MODEL_ERROR_RATE_CRITICAL_THRESHOLD)
+        elif model_error_rate >= MODEL_ERROR_RATE_WARNING_THRESHOLD:
+            add_alert(alerts, "warning", model_name, "error_rate", "model error rate is elevated", model_error_rate, MODEL_ERROR_RATE_WARNING_THRESHOLD)
 
-        if model_p95_latency_ms >= 800:
-            add_alert(alerts, "critical", model_name, "p95_latency_ms", "model P95 latency is too high", model_p95_latency_ms, 800)
-        elif model_p95_latency_ms >= 400:
-            add_alert(alerts, "warning", model_name, "p95_latency_ms", "model P95 latency is elevated", model_p95_latency_ms, 400)
+        if model_p95_latency_ms >= MODEL_P95_LATENCY_CRITICAL_MS:
+            add_alert(alerts, "critical", model_name, "p95_latency_ms", "model P95 latency is too high", model_p95_latency_ms, MODEL_P95_LATENCY_CRITICAL_MS)
+        elif model_p95_latency_ms >= MODEL_P95_LATENCY_WARNING_MS:
+            add_alert(alerts, "warning", model_name, "p95_latency_ms", "model P95 latency is elevated", model_p95_latency_ms, MODEL_P95_LATENCY_WARNING_MS)
 
     service_status = "healthy"
     if any(alert["level"] == "critical" for alert in alerts):
@@ -141,7 +155,7 @@ def health_check():
 
 @app.post("/v1/mock-infer")
 def mock_infer(request: MockInferRequest):
-    allowed_status_codes = {200, 400, 429, 500}
+    allowed_status_codes = ALLOWED_FORCE_STATUS_CODES
     if request.force_status is not None and request.force_status not in allowed_status_codes:
         raise HTTPException(
             status_code=400,
@@ -203,7 +217,7 @@ def get_model_metrics(model_name: Optional[str] = None):
 }
 
 @app.get("/metrics/slow")
-def get_slow_requests(threshold_ms: int = 200):
+def get_slow_requests(threshold_ms: int = DEFAULT_SLOW_THRESHOLD_MS):
     records = load_records()
 
     slow_records = []

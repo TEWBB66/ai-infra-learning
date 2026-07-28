@@ -20,6 +20,7 @@ This project provides a FastAPI service for analyzing simulated AI inference log
 - service-level and model-level alerting
 - warning and critical alert levels
 - automated tests for API endpoints and log analysis
+- centralized configuration for log path, alert thresholds, slow request threshold, and allowed mock status codes
 
 ## Endpoints
 
@@ -33,6 +34,16 @@ This project provides a FastAPI service for analyzing simulated AI inference log
 - `GET /metrics/models?model_name=qwen2.5-7b`: metrics for a specific model
 - `POST /v1/mock-infer`: simulate an inference request and append one log line
 - `GET /metrics/alerts`: service and model alert status
+
+## Configuration
+
+Key service settings are defined in `projects/ai_metrics_api/config.py`, including:
+
+- log file path
+- default slow request threshold
+- allowed forced status codes for mock inference
+- service-level alert thresholds
+- model-level alert thresholds
 
 ## Run
 
