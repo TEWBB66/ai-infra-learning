@@ -21,6 +21,7 @@ This project provides a FastAPI service for analyzing simulated AI inference log
 - warning and critical alert levels
 - automated tests for API endpoints and log analysis
 - centralized configuration for log path, alert thresholds, slow request threshold, and allowed mock status codes
+- load testing script for generating simulated inference traffic
 
 ## Endpoints
 
@@ -91,6 +92,23 @@ Current test coverage includes:
 - alerting endpoint
 - mock inference success path
 - mock inference validation errors
+
+## Load Test
+
+Generate simulated inference traffic:
+
+```bash
+python scripts/load_test.py --count 20 --error-rate 0.1
+```
+
+Then inspect updated metrics and alerts:
+
+```bash
+curl -s http://127.0.0.1:8000/metrics/logs | jq
+curl -s http://127.0.0.1:8000/metrics/alerts | jq
+```
+
+The load test script sends multiple requests to `/v1/mock-infer`, randomly selects models and token sizes, and optionally injects simulated error responses based on `--error-rate`.
 
 ## API Docs
 
