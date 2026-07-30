@@ -4,7 +4,7 @@ from uuid import uuid4
 import random
 import time
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
 
 from projects.log_analyzer.analyze_logs import analyze_logs, parse_log_line
@@ -269,3 +269,46 @@ def get_error_requests(status_code: Optional[int] = None):
 def get_alerts():
     metrics = analyze_logs(LOG_PATH)
     return build_alerts(metrics)
+
+@app.get("/metrics/prometheus")
+def get_prometheus_metrics():
+    metrics = analyze_logs(LOG_PATH)
+
+    lines = [
+        "# HELP ai_inference_total_requests Total number of inference requests",
+        "# TYPE ai_inference_total_requests gauge",
+        f"ai_inference_total_requests {metrics['total_requests']}",
+        "# HELP ai_inference_success_requests Total number of successful inference requests",
+        "# TYPE ai_inference_success_requests gauge",
+        f"ai_inference_success_requests {metrics['success_requests']}",
+        "# HELP ai_inference_failed_requests Total number of failed inference requests",
+        "# TYPE ai_inference_failed_requests gauge",
+        f"ai_inference_failed_requests {metrics['failed_requests']}",
+        "# HELP ai_inference_error_rate Inference request error rate",
+        "# TYPE ai_inference_error_rate gauge",
+        f"ai_inference_error_rate {metrics['error_rate']}",
+        "# HELP ai_inference_p95_latency_ms P95 inference latency in milliseconds",
+        "# TYPE ai_inference_p95_latency_ms gauge",
+        f"ai_inference_p95_latency_ms {metrics['p95_latency_ms']}",
+        "# HELP ai_inference_p99_latency_ms P99 inference latency in milliseconds",
+        "# TYPE ai_inference_p99_latency_ms gauge",
+        f"ai_inference_p99_latency_ms {metrics['p99_latency_ms']}",
+        "# HELP ai_inference_slow_request_count Number of slow inference requests",
+        "# TYPE ai_inference_slow_request_count gauge",
+        f"ai_inference_slow_request_count {metrics['slow_request_count']}",
+    ]
+
+    for model_name, model_metrics in metrics["metrics_by_model"].items():
+        safe_model_name = model_name.replace('"', '\\"')
+
+        lines.extend([
+            f'ai_inference_model_request_count{{model="{safe_model_name}"}} {model_metrics["request_count"]}',
+            f'ai_inference_model_error_count{{model="{safe_model_name}"}} {model_metrics["error_count"]}',
+            f'ai_inference_model_error_rate{{model="{safe_model_name}"}} {model_metrics["error_rate"]}',
+            f'ai_inference_model_avg_latency_ms{{model="{safe_model_name}"}} {model_metrics["avg_latency_ms"]}',
+            f'ai_inference_model_p95_latency_ms{{model="{safe_model_name}"}} {model_metrics["p95_latency_ms"]}',
+        ])
+
+    body = "\n".join(lines) + "\n"
+
+    return Response(content=body, media_type="text/plain")

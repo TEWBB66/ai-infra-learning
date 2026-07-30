@@ -108,3 +108,15 @@ def test_mock_infer_rejects_invalid_force_status():
 
     assert response.status_code == 400
     assert response.json()["detail"] == "force_status must be one of 200, 400, 429, 500"
+
+def test_prometheus_metrics():
+    response = client.get("/metrics/prometheus")
+
+    assert response.status_code == 200
+    assert "text/plain" in response.headers["content-type"]
+
+    body = response.text
+    assert "ai_inference_total_requests" in body
+    assert "ai_inference_error_rate" in body
+    assert "ai_inference_p95_latency_ms" in body
+    assert "ai_inference_model_request_count" in body

@@ -22,6 +22,7 @@ This project provides a FastAPI service for analyzing simulated AI inference log
 - automated tests for API endpoints and log analysis
 - centralized configuration for log path, alert thresholds, slow request threshold, and allowed mock status codes
 - load testing script for generating simulated inference traffic
+- Prometheus-style metrics endpoint for monitoring integration
 
 ## Endpoints
 
@@ -35,6 +36,7 @@ This project provides a FastAPI service for analyzing simulated AI inference log
 - `GET /metrics/models?model_name=qwen2.5-7b`: metrics for a specific model
 - `POST /v1/mock-infer`: simulate an inference request and append one log line
 - `GET /metrics/alerts`: service and model alert status
+- `GET /metrics/prometheus`: Prometheus-style plain text metrics
 
 ## Configuration
 
@@ -109,6 +111,24 @@ curl -s http://127.0.0.1:8000/metrics/alerts | jq
 ```
 
 The load test script sends multiple requests to `/v1/mock-infer`, randomly selects models and token sizes, and optionally injects simulated error responses based on `--error-rate`.
+
+## Prometheus Metrics
+
+Expose metrics in Prometheus text format:
+
+```bash
+curl -s http://127.0.0.1:8000/metrics/prometheus
+```
+
+Example metrics include:
+
+```text
+ai_inference_total_requests 20
+ai_inference_error_rate 0.2
+ai_inference_p95_latency_ms 495
+ai_inference_model_request_count{model="qwen2.5-7b"} 7
+ai_inference_model_error_rate{model="qwen2.5-7b"} 0.2857
+```
 
 ## API Docs
 
