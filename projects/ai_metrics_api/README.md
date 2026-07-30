@@ -23,6 +23,7 @@ This project provides a FastAPI service for analyzing simulated AI inference log
 - centralized configuration for log path, alert thresholds, slow request threshold, and allowed mock status codes
 - load testing script for generating simulated inference traffic
 - Prometheus-style metrics endpoint for monitoring integration
+- Dockerized service startup
 
 ## Endpoints
 
@@ -52,6 +53,34 @@ Key service settings are defined in `projects/ai_metrics_api/config.py`, includi
 
 ```bash
 python -m uvicorn projects.ai_metrics_api.main:app --host 0.0.0.0 --port 8000
+```
+
+## Docker
+
+Build the Docker image:
+
+```bash
+docker build -t ai-metrics-api .
+```
+
+Run the service in a container:
+
+```bash
+docker run --rm -p 8000:8000 ai-metrics-api
+```
+
+If port `8000` is already in use, map the container to another host port:
+
+```bash
+docker run --rm -p 8001:8000 ai-metrics-api
+```
+
+Then test the service:
+
+```bash
+curl -s http://127.0.0.1:8000/health | jq
+curl -s http://127.0.0.1:8000/metrics/logs | jq
+curl -s http://127.0.0.1:8000/metrics/prometheus | head -20
 ```
 
 ## Manual API Test
