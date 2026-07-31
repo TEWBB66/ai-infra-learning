@@ -1,55 +1,71 @@
 # AI Metrics API
 
-This project provides a FastAPI service for analyzing simulated AI inference logs.
+A FastAPI-based observability service for simulated AI inference workloads.
+
+This project simulates inference requests, writes structured logs, analyzes service-level and model-level metrics, and exposes JSON and Prometheus-style monitoring endpoints.
+
+## Architecture
+
+```text
+scripts/load_test.py
+    |
+    v
+POST /v1/mock-infer
+    |
+    v
+data/day02/inference.log
+    |
+    v
+projects/log_analyzer/analyze_logs.py
+    |
+    v
+FastAPI metrics endpoints
+    |
+    +--> /metrics/logs
+    +--> /metrics/models
+    +--> /metrics/alerts
+    +--> /metrics/prometheus
+```
 
 ## Features
 
-- health check
-- summary metrics for inference logs
-- average latency
+- mock inference endpoint
+- structured inference log generation
+- service-level metrics
+- model-level metrics
 - P95 and P99 latency
-- slow request analysis with custom threshold
-- error request filtering by status code
-- per-model request count, error count, average latency, and P95 latency
-- Swagger UI API documentation
-- per-model error rate
-- model-level filtering
-- 404 response for unknown model names
-- mock inference endpoint that generates request logs
-- request validation for token counts and forced status codes
-- service-level and model-level alerting
-- warning and critical alert levels
-- automated tests for API endpoints and log analysis
-- centralized configuration for log path, alert thresholds, slow request threshold, and allowed mock status codes
-- load testing script for generating simulated inference traffic
-- Prometheus-style metrics endpoint for monitoring integration
+- slow request analysis
+- error request filtering
+- warning and critical alerting
+- centralized configuration
+- automated pytest tests
+- load testing script
+- Prometheus-style metrics endpoint
 - Dockerized service startup
 
-## Endpoints
+## Project Structure
 
-- `GET /health`: health check
-- `GET /metrics/logs`: summary metrics, latency percentiles, and per-model metrics
-- `GET /metrics/slow`: slow request analysis
-- `GET /metrics/slow?threshold_ms=300`: slow request analysis with custom threshold
-- `GET /metrics/errors`: all error requests
-- `GET /metrics/errors?status_code=500`: error requests filtered by status code
-- `GET /metrics/models`: per-model metrics
-- `GET /metrics/models?model_name=qwen2.5-7b`: metrics for a specific model
-- `POST /v1/mock-infer`: simulate an inference request and append one log line
-- `GET /metrics/alerts`: service and model alert status
-- `GET /metrics/prometheus`: Prometheus-style plain text metrics
+```text
+projects/ai_metrics_api/
+  main.py          FastAPI application and API endpoints
+  config.py        log path, thresholds, and service configuration
+  README.md        project documentation
 
-## Configuration
+projects/log_analyzer/
+  analyze_logs.py  log parsing and metric aggregation logic
 
-Key service settings are defined in `projects/ai_metrics_api/config.py`, including:
+scripts/
+  load_test.py     simulated inference traffic generator
 
-- log file path
-- default slow request threshold
-- allowed forced status codes for mock inference
-- service-level alert thresholds
-- model-level alert thresholds
+tests/
+  test_api.py
+  test_log_analyzer.py
 
-## Run
+data/day02/
+  inference.log    sample inference log data
+```
+
+## Run Locally
 
 ```bash
 python -m uvicorn projects.ai_metrics_api.main:app --host 0.0.0.0 --port 8000
@@ -63,13 +79,13 @@ Build the Docker image:
 docker build -t ai-metrics-api .
 ```
 
-Run the service in a container:
+Run the service:
 
 ```bash
 docker run --rm -p 8000:8000 ai-metrics-api
 ```
 
-If port `8000` is already in use, map the container to another host port:
+If port `8000` is already in use:
 
 ```bash
 docker run --rm -p 8001:8000 ai-metrics-api
@@ -83,6 +99,20 @@ curl -s http://127.0.0.1:8000/metrics/logs | jq
 curl -s http://127.0.0.1:8000/metrics/prometheus | head -20
 ```
 
+## API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/health` | Health check |
+| POST | `/v1/mock-infer` | Simulate an inference request and append one log line |
+| GET | `/metrics/logs` | Summary metrics, latency percentiles, and model-level metrics |
+| GET | `/metrics/slow` | Slow request analysis |
+| GET | `/metrics/errors` | Error request analysis |
+| GET | `/metrics/models` | Metrics grouped by model |
+| GET | `/metrics/models?model_name=qwen2.5-7b` | Metrics for one model |
+| GET | `/metrics/alerts` | Service-level and model-level alerts |
+| GET | `/metrics/prometheus` | Prometheus-style text metrics |
+
 ## Manual API Test
 
 ```bash
@@ -91,11 +121,21 @@ curl -s http://127.0.0.1:8000/metrics/logs | jq
 curl -s http://127.0.0.1:8000/metrics/models | jq
 curl -s "http://127.0.0.1:8000/metrics/models?model_name=qwen2.5-7b" | jq
 curl -i "http://127.0.0.1:8000/metrics/models?model_name=unknown-model"
+curl -s http://127.0.0.1:8000/metrics/alerts | jq
+curl -s http://127.0.0.1:8000/metrics/prometheus | head -20
+```
 
+## Mock Inference
+
+```bash
 curl -s -X POST http://127.0.0.1:8000/v1/mock-infer \
   -H "Content-Type: application/json" \
   -d '{"model":"qwen2.5-7b","tokens_in":300,"tokens_out":80}' | jq
+```
 
+Validation examples:
+
+```bash
 curl -i -X POST http://127.0.0.1:8000/v1/mock-infer \
   -H "Content-Type: application/json" \
   -d '{"model":"qwen2.5-7b","tokens_in":-1,"tokens_out":0}'
@@ -103,26 +143,7 @@ curl -i -X POST http://127.0.0.1:8000/v1/mock-infer \
 curl -i -X POST http://127.0.0.1:8000/v1/mock-infer \
   -H "Content-Type: application/json" \
   -d '{"model":"qwen2.5-7b","tokens_in":10,"tokens_out":0,"force_status":999}'
-
-curl -s http://127.0.0.1:8000/metrics/alerts | jq
 ```
-
-## Automated Test
-
-```bash
-python -m pytest -q
-```
-
-Current test coverage includes:
-
-- log analyzer summary metrics
-- health check endpoint
-- log metrics endpoint
-- model metrics endpoint
-- model filtering
-- alerting endpoint
-- mock inference success path
-- mock inference validation errors
 
 ## Load Test
 
@@ -149,7 +170,7 @@ Expose metrics in Prometheus text format:
 curl -s http://127.0.0.1:8000/metrics/prometheus
 ```
 
-Example metrics include:
+Example metrics:
 
 ```text
 ai_inference_total_requests 20
@@ -159,10 +180,46 @@ ai_inference_model_request_count{model="qwen2.5-7b"} 7
 ai_inference_model_error_rate{model="qwen2.5-7b"} 0.2857
 ```
 
-## API Docs
+## Automated Test
 
-After starting the service, open:
-
-```text
-/docs
+```bash
+python -m pytest -q
 ```
+
+Current test coverage includes:
+
+- log analyzer summary metrics
+- health check endpoint
+- log metrics endpoint
+- model metrics endpoint
+- model filtering
+- alerting endpoint
+- Prometheus metrics endpoint
+- mock inference success path
+- mock inference validation errors
+
+## Configuration
+
+Key service settings are defined in `projects/ai_metrics_api/config.py`, including:
+
+- log file path
+- default slow request threshold
+- allowed forced status codes for mock inference
+- service-level alert thresholds
+- model-level alert thresholds
+
+## Design Notes
+
+This project separates log analysis from API serving. The log analyzer handles parsing and metric aggregation, while the FastAPI service exposes those metrics through JSON and Prometheus-style endpoints.
+
+The alerting logic uses both service-level and model-level metrics. This makes it possible to distinguish between a global service issue and a model-specific reliability or latency problem.
+
+Docker support improves environment consistency and makes the service easier to run on another machine or server.
+
+## Roadmap
+
+- add architecture diagram
+- add Prometheus scrape config
+- add Grafana dashboard
+- connect to a real model serving backend such as vLLM or Triton
+- add performance comparison under different traffic patterns
