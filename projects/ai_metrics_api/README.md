@@ -180,6 +180,32 @@ ai_inference_model_request_count{model="qwen2.5-7b"} 7
 ai_inference_model_error_rate{model="qwen2.5-7b"} 0.2857
 ```
 
+## Prometheus Integration
+
+Start the API service and Prometheus together:
+
+```bash
+docker compose up --build
+```
+
+Prometheus is available at:
+
+```text
+http://127.0.0.1:9090
+```
+
+Example Prometheus queries:
+
+```text
+ai_inference_total_requests
+ai_inference_error_rate
+ai_inference_p95_latency_ms
+ai_inference_model_request_count
+ai_inference_model_error_rate
+```
+
+The Prometheus scrape configuration is defined in `monitoring/prometheus.yml`. It scrapes the API service at `/metrics/prometheus` every 5 seconds.
+
 ## Automated Test
 
 ```bash
