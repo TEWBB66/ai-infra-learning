@@ -206,6 +206,64 @@ ai_inference_model_error_rate
 
 The Prometheus scrape configuration is defined in `monitoring/prometheus.yml`. It scrapes the API service at `/metrics/prometheus` every 5 seconds.
 
+## Grafana Dashboard
+
+This project includes a minimal Grafana dashboard for visualizing AI inference service metrics.
+
+Dashboard JSON file:
+
+```text
+monitoring/grafana/dashboards/ai_metrics_dashboard.json
+```
+
+Start the API service, Prometheus, and Grafana with Docker Compose:
+
+```bash
+docker compose up --build
+```
+
+Open Grafana:
+
+```text
+http://127.0.0.1:3000
+```
+
+Default Grafana login:
+
+```text
+username: admin
+password: admin
+```
+
+After logging in, add Prometheus as a data source.
+
+Prometheus data source URL:
+
+```text
+http://prometheus:9090
+```
+
+Then import the dashboard JSON from:
+
+```text
+monitoring/grafana/dashboards/ai_metrics_dashboard.json
+```
+
+The dashboard includes four basic panels:
+
+```text
+Total Requests
+Error Rate
+P95 Latency
+Slow Requests
+```
+
+These panels are based on the Prometheus metrics exposed by the API at:
+
+```text
+/metrics/prometheus
+```
+
 ## Automated Test
 
 ```bash
