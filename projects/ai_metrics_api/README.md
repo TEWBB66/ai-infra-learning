@@ -264,6 +264,73 @@ These panels are based on the Prometheus metrics exposed by the API at:
 /metrics/prometheus
 ```
 
+## Load Test and Observability Validation
+
+The project includes a simple load testing script for generating mock inference traffic and validating that metrics are reflected in the observability stack.
+
+Run a low-error-rate load test:
+
+```bash
+python scripts/load_test.py --count 10 --error-rate 0.1
+```
+
+Example result:
+
+```text
+total_requests=10
+success_count=9
+error_count=1
+avg_latency_ms=315.4
+max_latency_ms=524
+```
+
+After this test, the Grafana dashboard reflected updated metrics:
+
+```text
+Total Requests: 25
+Error Rate: 0.160
+P95 Latency: 524
+Slow Requests: 12
+```
+
+Run a high-error-rate load test:
+
+```bash
+python scripts/load_test.py --count 10 --error-rate 0.5
+```
+
+Example result:
+
+```text
+total_requests=10
+success_count=4
+error_count=6
+avg_latency_ms=319.5
+max_latency_ms=515
+```
+
+After this test, the Grafana dashboard reflected a clear service degradation:
+
+```text
+Total Requests: 35
+Error Rate: 0.286
+P95 Latency: 515
+Slow Requests: 20
+```
+
+This validates the full observability flow:
+
+```text
+load_test.py
+-> mock inference API
+-> inference log file
+-> metrics API
+-> Prometheus scrape
+-> Grafana dashboard
+```
+
+The goal is to verify that the monitoring system responds to both normal traffic and degraded traffic.
+
 ## Automated Test
 
 ```bash
