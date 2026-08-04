@@ -1,27 +1,42 @@
 services:
   ai-metrics-api:
     build: .
+    container_name: ai-metrics-api
     ports:
       - "8000:8000"
-
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=20040325
     volumes:
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - ./data:/app/data
+    environment:
+      - INFERENCE_LOG_PATH=/app/data/day02/inference.log
     depends_on:
-      - prometheus
+      - mock-model-server
+
+  mock-model-server:
+    build: .
+    container_name: mock-model-server
+    command: python -m uvicorn projects.mock_model_server.main:app --host 0.0.0.0 --port 8001
+    ports:
+      - "8001:8001"
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus
+    container_name: prometheus
     ports:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
     depends_on:
       - ai-metrics-api
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=20040325
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus

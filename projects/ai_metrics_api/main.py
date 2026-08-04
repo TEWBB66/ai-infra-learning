@@ -3,6 +3,7 @@ from typing import Optional
 from uuid import uuid4
 import random
 import time
+import httpx
 
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
@@ -13,6 +14,7 @@ from projects.ai_metrics_api.config import (
     ALLOWED_FORCE_STATUS_CODES,
     DEFAULT_SLOW_THRESHOLD_MS,
     LOG_PATH,
+    MODEL_SERVER_URL,
     MODEL_ERROR_RATE_CRITICAL_THRESHOLD,
     MODEL_ERROR_RATE_WARNING_THRESHOLD,
     MODEL_P95_LATENCY_CRITICAL_MS,
@@ -26,6 +28,33 @@ from projects.ai_metrics_api.config import (
 )
 
 app = FastAPI()
+
+def format_log_line(
+    request_id: str,
+    model: str,
+    endpoint: str,
+    status: int,
+    latency_ms: int,
+    tokens_in: int,
+    tokens_out: int,
+) -> str:
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return (
+        f"{now} "
+        f"request_id={request_id} "
+        f"model={model} "
+        f"endpoint={endpoint} "
+        f"status={status} "
+        f"latency_ms={latency_ms} "
+        f"tokens_in={tokens_in} "
+        f"tokens_out={tokens_out}"
+    )
+
+
+def append_log_line(log_line: str) -> None:
+    with open(LOG_PATH, "a", encoding="utf-8") as f:
+        f.write(log_line + "\n")
+        
 
 def add_alert(alerts, level, scope, metric, message, actual, threshold):
     alerts.append({
@@ -145,6 +174,12 @@ def load_records():
 
     return records
 
+def call_model_server(payload: dict) -> dict:
+    with httpx.Client(timeout=5.0) as client:
+        response = client.post(MODEL_SERVER_URL, json=payload)
+    response.raise_for_status()
+    return response.json()
+
 
 @app.get("/health")
 def health_check():
@@ -155,44 +190,39 @@ def health_check():
 
 @app.post("/v1/mock-infer")
 def mock_infer(request: MockInferRequest):
-    allowed_status_codes = ALLOWED_FORCE_STATUS_CODES
-    if request.force_status is not None and request.force_status not in allowed_status_codes:
+    if (
+        request.force_status is not None
+        and request.force_status not in ALLOWED_FORCE_STATUS_CODES
+    ):
         raise HTTPException(
             status_code=400,
             detail="force_status must be one of 200, 400, 429, 500",
         )
-    request_id = f"req-{uuid4().hex[:8]}"
-    latency_ms = estimate_latency_ms(
-        request.model,
-        request.tokens_in,
-        request.tokens_out,
+
+    result = call_model_server(
+        {
+            "model": request.model,
+            "tokens_in": request.tokens_in,
+            "tokens_out": request.tokens_out,
+            "force_status": request.force_status,
+        }
     )
 
-    if request.force_status is not None:
-        status = request.force_status
-    else:
-        status = 200
-
-    time.sleep(latency_ms / 1000)
-
-    log_line = build_log_line(
+    request_id = f"req-{uuid4().hex[:8]}"
+    log_line = format_log_line(
         request_id=request_id,
-        model=request.model,
-        endpoint=request.endpoint,
-        status=status,
-        latency_ms=latency_ms,
-        tokens_in=request.tokens_in,
-        tokens_out=request.tokens_out,
+        model=result["model"],
+        endpoint="/v1/mock-infer",
+        status=result["status"],
+        latency_ms=result["latency_ms"],
+        tokens_in=result["tokens_in"],
+        tokens_out=result["tokens_out"],
     )
     append_log_line(log_line)
 
     return {
         "request_id": request_id,
-        "model": request.model,
-        "status": status,
-        "latency_ms": latency_ms,
-        "tokens_in": request.tokens_in,
-        "tokens_out": request.tokens_out,
+        **result,
     }
 
 @app.get("/metrics/logs")

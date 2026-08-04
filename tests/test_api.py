@@ -5,6 +5,24 @@ from projects.ai_metrics_api.main import app
 
 client = TestClient(app)
 
+class FakeModelServerResponse:
+    status_code = 200
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return {
+            "model": "bge-reranker",
+            "status": 200,
+            "latency_ms": 66,
+            "tokens_in": 10,
+            "tokens_out": 0,
+        }
+
+
+def fake_model_server_post(*args, **kwargs):
+    return FakeModelServerResponse()
 
 def test_health_check():
     response = client.get("/health")
@@ -61,7 +79,22 @@ def test_metrics_model_filter_unknown_model():
     assert response.status_code == 404
     assert response.json()["detail"] == "model not found"
 
-def test_mock_infer_success():
+def fake_call_model_server(payload):
+    return {
+        "model": payload["model"],
+        "status": payload.get("force_status") or 200,
+        "latency_ms": 66,
+        "tokens_in": payload["tokens_in"],
+        "tokens_out": payload["tokens_out"],
+    }
+
+
+def test_mock_infer_success(monkeypatch):
+    monkeypatch.setattr(
+        "projects.ai_metrics_api.main.call_model_server",
+        fake_call_model_server,
+    )
+
     response = client.post(
         "/v1/mock-infer",
         json={
@@ -72,14 +105,13 @@ def test_mock_infer_success():
     )
 
     assert response.status_code == 200
-
     data = response.json()
     assert data["model"] == "bge-reranker"
     assert data["status"] == 200
+    assert data["latency_ms"] == 66
     assert data["tokens_in"] == 10
     assert data["tokens_out"] == 0
     assert "request_id" in data
-    assert "latency_ms" in data
 
 
 def test_mock_infer_rejects_negative_tokens():
