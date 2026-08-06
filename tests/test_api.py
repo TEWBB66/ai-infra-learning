@@ -151,7 +151,18 @@ def test_prometheus_metrics():
     assert "ai_inference_total_requests" in body
     assert "ai_inference_error_rate" in body
     assert "ai_inference_p95_latency_ms" in body
-    assert "ai_inference_model_request_count" in body
+    assert "ai_inference_model_requests" in body
+
+def test_prometheus_metrics_include_model_level_metrics():
+    response = client.get("/metrics/prometheus")
+
+    assert response.status_code == 200
+
+    body = response.text
+    assert 'ai_inference_model_requests{model="qwen2.5-7b"}' in body
+    assert 'ai_inference_model_errors{model="qwen2.5-7b"}' in body
+    assert 'ai_inference_model_error_rate{model="qwen2.5-7b"}' in body
+    assert 'ai_inference_model_p95_latency_ms{model="qwen2.5-7b"}' in body
 
 def test_incident_report_endpoint():
     response = client.get("/metrics/incidents")

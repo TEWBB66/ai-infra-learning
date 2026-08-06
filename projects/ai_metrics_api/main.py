@@ -7,6 +7,7 @@ import httpx
 
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
+from fastapi.responses import PlainTextResponse
 
 from projects.log_analyzer.analyze_logs import analyze_logs, parse_log_line
 
@@ -385,7 +386,11 @@ def get_incident_report():
     alerts_response = get_alerts()
     return build_incident_report(metrics, alerts_response)
 
-@app.get("/metrics/prometheus")
+def _escape_prometheus_label(value: str) -> str:
+    return str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
+@app.get("/metrics/prometheus", response_class=PlainTextResponse)
 def get_prometheus_metrics():
     metrics = analyze_logs(LOG_PATH)
 
@@ -411,19 +416,53 @@ def get_prometheus_metrics():
         "# HELP ai_inference_slow_request_count Number of slow inference requests",
         "# TYPE ai_inference_slow_request_count gauge",
         f"ai_inference_slow_request_count {metrics['slow_request_count']}",
+        "# HELP ai_inference_model_requests Number of inference requests by model",
+        "# TYPE ai_inference_model_requests gauge",
     ]
 
     for model_name, model_metrics in metrics["metrics_by_model"].items():
-        safe_model_name = model_name.replace('"', '\\"')
+        model_label = _escape_prometheus_label(model_name)
+        lines.append(
+            f'ai_inference_model_requests{{model="{model_label}"}} {model_metrics["request_count"]}'
+        )
 
-        lines.extend([
-            f'ai_inference_model_request_count{{model="{safe_model_name}"}} {model_metrics["request_count"]}',
-            f'ai_inference_model_error_count{{model="{safe_model_name}"}} {model_metrics["error_count"]}',
-            f'ai_inference_model_error_rate{{model="{safe_model_name}"}} {model_metrics["error_rate"]}',
-            f'ai_inference_model_avg_latency_ms{{model="{safe_model_name}"}} {model_metrics["avg_latency_ms"]}',
-            f'ai_inference_model_p95_latency_ms{{model="{safe_model_name}"}} {model_metrics["p95_latency_ms"]}',
-        ])
+    lines.extend(
+        [
+            "# HELP ai_inference_model_errors Number of failed inference requests by model",
+            "# TYPE ai_inference_model_errors gauge",
+        ]
+    )
 
-    body = "\n".join(lines) + "\n"
+    for model_name, model_metrics in metrics["metrics_by_model"].items():
+        model_label = _escape_prometheus_label(model_name)
+        lines.append(
+            f'ai_inference_model_errors{{model="{model_label}"}} {model_metrics["error_count"]}'
+        )
 
-    return Response(content=body, media_type="text/plain")
+    lines.extend(
+        [
+            "# HELP ai_inference_model_error_rate Error rate by model",
+            "# TYPE ai_inference_model_error_rate gauge",
+        ]
+    )
+
+    for model_name, model_metrics in metrics["metrics_by_model"].items():
+        model_label = _escape_prometheus_label(model_name)
+        lines.append(
+            f'ai_inference_model_error_rate{{model="{model_label}"}} {model_metrics["error_rate"]}'
+        )
+
+    lines.extend(
+        [
+            "# HELP ai_inference_model_p95_latency_ms P95 inference latency by model in milliseconds",
+            "# TYPE ai_inference_model_p95_latency_ms gauge",
+        ]
+    )
+
+    for model_name, model_metrics in metrics["metrics_by_model"].items():
+        model_label = _escape_prometheus_label(model_name)
+        lines.append(
+            f'ai_inference_model_p95_latency_ms{{model="{model_label}"}} {model_metrics["p95_latency_ms"]}'
+        )
+
+    return "\n".join(lines) + "\n"
