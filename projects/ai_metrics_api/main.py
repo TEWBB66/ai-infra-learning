@@ -25,6 +25,7 @@ from projects.ai_metrics_api.config import (
     SERVICE_P95_LATENCY_WARNING_MS,
     SERVICE_SLOW_REQUEST_CRITICAL_COUNT,
     SERVICE_SLOW_REQUEST_WARNING_COUNT,
+    MODEL_SERVER_TIMEOUT_SECONDS,
 )
 
 app = FastAPI()
@@ -175,10 +176,33 @@ def load_records():
     return records
 
 def call_model_server(payload: dict) -> dict:
-    with httpx.Client(timeout=5.0) as client:
-        response = client.post(MODEL_SERVER_URL, json=payload)
-    response.raise_for_status()
-    return response.json()
+    try:
+        with httpx.Client(timeout=MODEL_SERVER_TIMEOUT_SECONDS) as client:
+            response = client.post(MODEL_SERVER_URL, json=payload)
+    except httpx.TimeoutException as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="model server request timed out",
+        ) from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="model server is unavailable",
+        ) from exc
+
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=502,
+            detail=f"model server returned status {response.status_code}",
+        )
+
+    try:
+        return response.json()
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="model server returned invalid JSON",
+        ) from exc
 
 
 @app.get("/health")
