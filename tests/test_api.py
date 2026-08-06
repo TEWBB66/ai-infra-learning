@@ -152,3 +152,25 @@ def test_prometheus_metrics():
     assert "ai_inference_error_rate" in body
     assert "ai_inference_p95_latency_ms" in body
     assert "ai_inference_model_request_count" in body
+
+def test_incident_report_endpoint():
+    response = client.get("/metrics/incidents")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "service_status" in data
+    assert data["service_status"] in ["healthy", "warning", "critical"]
+
+    assert "summary" in data
+    assert "total_requests" in data
+    assert "error_rate" in data
+    assert "p95_latency_ms" in data
+    assert "slow_request_count" in data
+    assert "alert_count" in data
+
+    assert "possible_causes" in data
+    assert isinstance(data["possible_causes"], list)
+
+    assert "suggested_actions" in data
+    assert isinstance(data["suggested_actions"], list)

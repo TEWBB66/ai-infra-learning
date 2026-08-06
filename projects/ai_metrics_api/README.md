@@ -104,13 +104,14 @@ curl -s http://127.0.0.1:8000/metrics/prometheus | head -20
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/health` | Health check |
-| POST | `/v1/mock-infer` | Simulate an inference request and append one log line |
-| GET | `/metrics/logs` | Summary metrics, latency percentiles, and model-level metrics |
+| POST | `/v1/mock-infer` | Send one inference request to the mock model server and append one log line |
+| GET | `/metrics/logs` | Summary metrics, latency percentiles, slow requests, and model-level metrics |
 | GET | `/metrics/slow` | Slow request analysis |
 | GET | `/metrics/errors` | Error request analysis |
 | GET | `/metrics/models` | Metrics grouped by model |
 | GET | `/metrics/models?model_name=qwen2.5-7b` | Metrics for one model |
-| GET | `/metrics/alerts` | Service-level and model-level alerts |
+| GET | `/metrics/alerts` | Service-level and model-level alert rules |
+| GET | `/metrics/incidents` | Incident summary with possible causes and suggested actions |
 | GET | `/metrics/prometheus` | Prometheus-style text metrics |
 
 ## Manual API Test
@@ -122,7 +123,30 @@ curl -s http://127.0.0.1:8000/metrics/models | jq
 curl -s "http://127.0.0.1:8000/metrics/models?model_name=qwen2.5-7b" | jq
 curl -i "http://127.0.0.1:8000/metrics/models?model_name=unknown-model"
 curl -s http://127.0.0.1:8000/metrics/alerts | jq
+curl -s http://127.0.0.1:8000/metrics/incidents | jq
 curl -s http://127.0.0.1:8000/metrics/prometheus | head -20
+```
+
+## Incident Diagnosis
+
+The `/metrics/incidents` endpoint turns raw metrics and alerts into an operator-facing incident report.
+
+It reports:
+
+- current service status
+- incident summary
+- total request count
+- error rate
+- P95 latency
+- slow request count
+- alert count
+- possible causes
+- suggested actions
+
+Example:
+
+```bash
+curl -s http://127.0.0.1:8000/metrics/incidents | jq
 ```
 
 ## Mock Inference

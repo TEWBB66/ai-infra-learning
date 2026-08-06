@@ -300,6 +300,67 @@ def get_alerts():
     metrics = analyze_logs(LOG_PATH)
     return build_alerts(metrics)
 
+def build_incident_report(metrics, alerts_response):
+    alerts = alerts_response.get("alerts", [])
+    service_status = alerts_response.get("service_status", "healthy")
+
+    possible_causes = []
+    suggested_actions = []
+
+    for alert in alerts:
+        scope = alert.get("scope")
+        metric = alert.get("metric")
+        level = alert.get("level")
+
+        if scope == "service" and metric == "error_rate":
+            possible_causes.append("overall inference service error rate is elevated")
+            suggested_actions.append("check recent failed requests and model server logs")
+
+        elif scope == "service" and metric == "p95_latency_ms":
+            possible_causes.append("overall inference latency is elevated")
+            suggested_actions.append("inspect top slow requests and high-latency models")
+
+        elif scope == "service" and metric == "slow_request_count":
+            possible_causes.append("slow requests are accumulating")
+            suggested_actions.append("check whether recent traffic contains long prompts or slow models")
+
+        elif scope != "service" and metric == "error_rate":
+            possible_causes.append(f"{scope} has elevated error rate")
+            suggested_actions.append(f"consider reducing traffic to {scope} or checking its backend health")
+
+        elif scope != "service" and metric == "p95_latency_ms":
+            possible_causes.append(f"{scope} has elevated P95 latency")
+            suggested_actions.append(f"inspect slow requests for {scope}")
+
+        if level == "critical":
+            suggested_actions.append("treat this as an incident and prioritize immediate investigation")
+
+    if not alerts:
+        summary = "service is healthy; no active incident detected"
+    elif service_status == "critical":
+        summary = "critical incident detected in inference service"
+    else:
+        summary = "warning-level service degradation detected"
+
+    return {
+        "service_status": service_status,
+        "summary": summary,
+        "total_requests": metrics.get("total_requests"),
+        "error_rate": metrics.get("error_rate"),
+        "p95_latency_ms": metrics.get("p95_latency_ms"),
+        "slow_request_count": metrics.get("slow_request_count"),
+        "alert_count": len(alerts),
+        "possible_causes": list(dict.fromkeys(possible_causes)),
+        "suggested_actions": list(dict.fromkeys(suggested_actions)),
+    }
+
+
+@app.get("/metrics/incidents")
+def get_incident_report():
+    metrics = analyze_logs(LOG_PATH)
+    alerts_response = get_alerts()
+    return build_incident_report(metrics, alerts_response)
+
 @app.get("/metrics/prometheus")
 def get_prometheus_metrics():
     metrics = analyze_logs(LOG_PATH)
