@@ -28,6 +28,37 @@ The Docker Compose stack includes:
 - `prometheus`: scrapes metrics from `ai-metrics-api`
 - `grafana`: loads the provisioned Prometheus datasource and dashboard
 
+## Architecture
+
+```mermaid
+flowchart LR
+    Client["Client / curl / load_test.py"] --> API["ai-metrics-api<br/>FastAPI service"]
+
+    API --> MockModel["mock-model-server<br/>/generate"]
+    MockModel --> API
+
+    API --> LogFile["data/day02/inference.log<br/>structured inference logs"]
+
+    API --> Metrics["/metrics/logs<br/>/metrics/models<br/>/metrics/slow<br/>/metrics/errors"]
+    API --> Alerts["/metrics/alerts"]
+    API --> Incidents["/metrics/incidents"]
+
+    API --> PromEndpoint["/metrics/prometheus"]
+    Prometheus["Prometheus"] --> PromEndpoint
+    Grafana["Grafana dashboard"] --> Prometheus
+```
+
+The main request flow is:
+
+1. A client or load test sends an inference request to `/v1/mock-infer`.
+2. `ai-metrics-api` calls the separated `mock-model-server`.
+3. The API records the request result into `data/day02/inference.log`.
+4. Metrics endpoints parse the log file and calculate request count, error rate, latency percentiles, slow requests, and model-level metrics.
+5. `/metrics/prometheus` exposes these metrics in Prometheus text format.
+6. Prometheus scrapes the API metrics endpoint.
+7. Grafana reads from Prometheus and visualizes service health.
+8. Alert and incident endpoints summarize abnormal error rate, latency, and model-level behavior.
+
 ## Run with Docker Compose
 
 Start the full stack:
