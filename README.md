@@ -177,12 +177,26 @@ The project currently supports:
 - warning and critical alert generation
 - incident diagnosis summary
 - Prometheus metrics export
+- service-level Prometheus metrics
+- model-level Prometheus metrics with `model` labels
 - Prometheus scrape configuration
 - Grafana datasource and dashboard provisioning
 - Docker Compose startup
 - load testing script
 - pytest-based automated tests
 - model server failure handling
+
+Example model-level Prometheus metrics:
+
+```text
+ai_inference_model_request_count{model="qwen2.5-7b"} 7
+ai_inference_model_error_count{model="qwen2.5-7b"} 2
+ai_inference_model_error_rate{model="qwen2.5-7b"} 0.2857
+ai_inference_model_avg_latency_ms{model="qwen2.5-7b"} 289.0
+ai_inference_model_p95_latency_ms{model="qwen2.5-7b"} 910
+```
+
+These metrics make it possible to compare traffic, errors, and latency across different model names.
 
 ## Load Test
 
