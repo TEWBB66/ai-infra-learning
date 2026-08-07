@@ -3,13 +3,14 @@ from typing import Optional
 from uuid import uuid4
 import random
 import time
-import httpx
+
 
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
 from fastapi.responses import PlainTextResponse
 
 from projects.log_analyzer.analyze_logs import analyze_logs, parse_log_line
+from projects.ai_metrics_api.model_client import call_model_server
 
 from projects.ai_metrics_api.config import (
     ALLOWED_FORCE_STATUS_CODES,
@@ -175,36 +176,6 @@ def load_records():
             records.append(record)
 
     return records
-
-def call_model_server(payload: dict) -> dict:
-    try:
-        with httpx.Client(timeout=MODEL_SERVER_TIMEOUT_SECONDS) as client:
-            response = client.post(MODEL_SERVER_URL, json=payload)
-    except httpx.TimeoutException as exc:
-        raise HTTPException(
-            status_code=504,
-            detail="model server request timed out",
-        ) from exc
-    except httpx.RequestError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail="model server is unavailable",
-        ) from exc
-
-    if response.status_code >= 400:
-        raise HTTPException(
-            status_code=502,
-            detail=f"model server returned status {response.status_code}",
-        )
-
-    try:
-        return response.json()
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail="model server returned invalid JSON",
-        ) from exc
-
 
 @app.get("/health")
 def health_check():
