@@ -123,3 +123,84 @@ The next version can replace estimated latency with real model inference:
 5. Return the same response fields required by the backend protocol.
 
 The response schema should stay stable so the observability stack does not need to change.
+
+## Runtime Modes
+
+The GPU model server is designed to support runtime modes through an environment variable:
+
+```bash
+GPU_MODEL_MODE=template
+```
+
+Current supported mode:
+
+```text
+template
+```
+
+Planned future mode:
+
+```text
+transformers
+```
+
+### Template Mode
+
+Template mode is the default mode.
+
+```bash
+GPU_MODEL_MODE=template
+```
+
+In this mode, the server does not load a real model. It returns protocol-compatible responses with estimated latency.
+
+This mode is useful for:
+
+- local development
+- protocol testing
+- API integration tests
+- validating the remote backend path without GPU dependencies
+
+### Transformers Mode
+
+Transformers mode is planned for the remote GPU experiment.
+
+```bash
+GPU_MODEL_MODE=transformers
+GPU_MODEL_NAME=Qwen/Qwen2.5-0.5B-Instruct
+```
+
+In this mode, the server should:
+
+1. load a tokenizer and model at startup
+2. move the model to GPU when CUDA is available
+3. receive `/generate` requests
+4. build a prompt from the request
+5. run model generation
+6. measure real inference latency
+7. return the same protocol-compatible response body
+
+The response schema must remain unchanged:
+
+```json
+{
+  "model": "qwen2.5-0.5b",
+  "status": 200,
+  "latency_ms": 123,
+  "tokens_in": 100,
+  "tokens_out": 20
+}
+```
+
+Keeping the response schema stable allows `ai-metrics-api`, Prometheus, Grafana, alerts, and incidents to work without changes.
+
+### Why Template Mode Remains the Default
+
+The default mode should stay lightweight because the main repository must remain reproducible without GPU access.
+
+The remote GPU experiment should be optional:
+
+```text
+default local demo -> mock backend / template backend
+short-term GPU validation -> remote_http backend + transformers mode
+```
