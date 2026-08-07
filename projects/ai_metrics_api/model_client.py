@@ -3,12 +3,19 @@ import httpx
 from fastapi import HTTPException
 
 from projects.ai_metrics_api.config import (
+    MODEL_BACKEND,
     MODEL_SERVER_TIMEOUT_SECONDS,
     MODEL_SERVER_URL,
 )
 
 
 def call_model_server(payload: dict) -> dict:
+    if MODEL_BACKEND != "mock":
+        raise HTTPException(
+            status_code=500,
+            detail=f"unsupported model backend: {MODEL_BACKEND}",
+        )
+
     try:
         with httpx.Client(timeout=MODEL_SERVER_TIMEOUT_SECONDS) as client:
             response = client.post(MODEL_SERVER_URL, json=payload)
