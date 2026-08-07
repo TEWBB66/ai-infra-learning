@@ -1,3 +1,4 @@
+import os
 import time
 from typing import Optional
 
@@ -8,7 +9,7 @@ from pydantic import BaseModel, Field
 app = FastAPI(title="GPU Model Server")
 
 ALLOWED_STATUS_CODES = {200, 400, 429, 500}
-
+GPU_MODEL_MODE = os.getenv("GPU_MODEL_MODE", "template")
 
 class GenerateRequest(BaseModel):
     model: str
@@ -45,14 +46,7 @@ def health_check():
     }
 
 
-@app.post("/generate", response_model=GenerateResponse)
-def generate(request: GenerateRequest):
-    if request.force_status is not None and request.force_status not in ALLOWED_STATUS_CODES:
-        raise HTTPException(
-            status_code=400,
-            detail="force_status must be one of 200, 400, 429, 500",
-        )
-
+def generate_with_template(request: GenerateRequest) -> dict:
     start_time = time.perf_counter()
 
     status = request.force_status or 200
@@ -72,3 +66,20 @@ def generate(request: GenerateRequest):
         "tokens_in": request.tokens_in,
         "tokens_out": request.tokens_out,
     }
+
+
+@app.post("/generate", response_model=GenerateResponse)
+def generate(request: GenerateRequest):
+    if request.force_status is not None and request.force_status not in ALLOWED_STATUS_CODES:
+        raise HTTPException(
+            status_code=400,
+            detail="force_status must be one of 200, 400, 429, 500",
+        )
+
+    if GPU_MODEL_MODE == "template":
+        return generate_with_template(request)
+
+    raise HTTPException(
+        status_code=500,
+        detail=f"unsupported GPU_MODEL_MODE: {GPU_MODEL_MODE}",
+    )

@@ -64,3 +64,20 @@ def test_gpu_model_server_rejects_invalid_force_status():
 
     assert response.status_code == 400
     assert response.json()["detail"] == "force_status must be one of 200, 400, 429, 500"
+
+def test_gpu_model_server_rejects_unsupported_mode(monkeypatch):
+    from projects.gpu_model_server import main
+
+    monkeypatch.setattr(main, "GPU_MODEL_MODE", "unsupported")
+
+    response = client.post(
+        "/generate",
+        json={
+            "model": "qwen2.5-0.5b",
+            "tokens_in": 100,
+            "tokens_out": 20,
+        },
+    )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "unsupported GPU_MODEL_MODE: unsupported"
