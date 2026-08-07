@@ -1,3 +1,4 @@
+import importlib.util
 import os
 import time
 from typing import Optional
@@ -10,6 +11,7 @@ app = FastAPI(title="GPU Model Server")
 
 ALLOWED_STATUS_CODES = {200, 400, 429, 500}
 GPU_MODEL_MODE = os.getenv("GPU_MODEL_MODE", "template")
+GPU_MODEL_NAME = os.getenv("GPU_MODEL_NAME", "Qwen/Qwen2.5-0.5B-Instruct")
 
 class GenerateRequest(BaseModel):
     model: str
@@ -67,6 +69,26 @@ def generate_with_template(request: GenerateRequest) -> dict:
         "tokens_out": request.tokens_out,
     }
 
+def generate_with_transformers(request: GenerateRequest) -> dict:
+    missing_dependencies = []
+    if importlib.util.find_spec("torch") is None:
+        missing_dependencies.append("torch")
+    if importlib.util.find_spec("transformers") is None:
+        missing_dependencies.append("transformers")
+
+    if missing_dependencies:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "transformers mode requires missing dependencies: "
+                + ", ".join(missing_dependencies)
+            ),
+        )
+
+    raise HTTPException(
+        status_code=501,
+        detail=f"transformers mode is not implemented yet for {GPU_MODEL_NAME}",
+    )
 
 @app.post("/generate", response_model=GenerateResponse)
 def generate(request: GenerateRequest):
@@ -79,7 +101,11 @@ def generate(request: GenerateRequest):
     if GPU_MODEL_MODE == "template":
         return generate_with_template(request)
 
+    if GPU_MODEL_MODE == "transformers":
+        return generate_with_transformers(request)
+
     raise HTTPException(
         status_code=500,
         detail=f"unsupported GPU_MODEL_MODE: {GPU_MODEL_MODE}",
     )
+
