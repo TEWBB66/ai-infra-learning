@@ -10,7 +10,7 @@ from projects.ai_metrics_api.config import (
 
 
 def call_model_server(payload: dict) -> dict:
-    if MODEL_BACKEND != "mock":
+    if MODEL_BACKEND not in {"mock", "remote_http"}:
         raise HTTPException(
             status_code=500,
             detail=f"unsupported model backend: {MODEL_BACKEND}",
