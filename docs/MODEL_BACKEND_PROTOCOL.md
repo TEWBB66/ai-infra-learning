@@ -128,6 +128,43 @@ The first GPU version does not need to be complex. It only needs to:
 4. measure latency
 5. return the required response fields
 
+## GPU Model Server Template
+
+This repository includes a GPU model server template:
+
+```text
+projects/gpu_model_server/main.py
+```
+
+The template implements the same backend protocol:
+
+```text
+GET  /health
+POST /generate
+```
+
+The current template does not load a real model yet. It keeps the service interface stable and returns protocol-compatible responses with estimated latency.
+
+Its purpose is to prepare the project for a short-term remote GPU experiment:
+
+```text
+ai-metrics-api -> remote_http backend -> GPU model server -> inference log -> metrics -> Prometheus -> Grafana
+```
+
+The template can later be upgraded in two possible ways:
+
+1. FastAPI + Transformers
+   - easier to implement
+   - suitable for a small model such as Qwen2.5-0.5B or Qwen2.5-1.5B
+   - good first GPU validation path
+
+2. vLLM or another serving runtime
+   - closer to production LLM serving
+   - more relevant to AI infrastructure
+   - requires more GPU/server environment setup
+
+The default project should still remain runnable with the mock backend. The remote GPU backend is an experiment path, not a required dependency for local reproduction.
+
 ## Design Rule
 
 `ai-metrics-api` should not depend on model-specific implementation details.
