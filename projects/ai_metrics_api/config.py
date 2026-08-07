@@ -1,3 +1,5 @@
+import os
+
 LOG_PATH = "data/day02/inference.log"
 
 DEFAULT_SLOW_THRESHOLD_MS = 200
@@ -19,6 +21,9 @@ MODEL_ERROR_RATE_CRITICAL_THRESHOLD = 0.3
 MODEL_P95_LATENCY_WARNING_MS = 400
 MODEL_P95_LATENCY_CRITICAL_MS = 800
 
-MODEL_BACKEND = "mock"
-MODEL_SERVER_URL = "http://mock-model-server:8001/generate"
-MODEL_SERVER_TIMEOUT_SECONDS = 5.0
+MODEL_BACKEND = os.getenv("MODEL_BACKEND", "mock")
+MODEL_SERVER_URL = os.getenv(
+    "MODEL_SERVER_URL",
+    "http://mock-model-server:8001/generate",
+)
+MODEL_SERVER_TIMEOUT_SECONDS = float(os.getenv("MODEL_SERVER_TIMEOUT_SECONDS", "5.0"))
