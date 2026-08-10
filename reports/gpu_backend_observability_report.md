@@ -154,3 +154,44 @@ This is the key engineering value of the project: backend implementation can cha
 2. Run a larger-token request experiment and compare latency.
 3. Run a backend-failure experiment by stopping the GPU model server and checking API error handling.
 4. Improve GPU model server error handling so dependency and generation failures return structured HTTP errors instead of generic Internal Server Error.
+
+## Backend Failure Retest
+
+After implementing failed backend request logging, the GPU backend failure experiment was repeated.
+
+For this test, the GPU model server was intentionally left stopped. Only the metrics API was started with the remote_http backend.
+
+Metrics API startup command:
+
+    MODEL_BACKEND=remote_http \
+    MODEL_SERVER_URL=http://127.0.0.1:8002/generate \
+    MODEL_SERVER_TIMEOUT_SECONDS=5 \
+    python3 -m uvicorn projects.ai_metrics_api.main:app --host 127.0.0.1 --port 8000
+
+The request returned a 502 response as expected:
+
+    HTTP/1.1 502 Bad Gateway
+    {"detail":"model server is unavailable"}
+
+The failed backend request was written to the inference log:
+
+    2026-08-10T08:58:26Z request_id=req-9255dff6 model=qwen2.5-0.5b endpoint=/v1/mock-infer status=502 latency_ms=72 tokens_in=100 tokens_out=0
+
+The metrics endpoint also reflected the failure:
+
+    total_requests: 16
+    failed_requests: 4
+    error_rate: 0.25
+    qwen2.5-0.5b request_count: 2
+    qwen2.5-0.5b error_count: 1
+    qwen2.5-0.5b error_rate: 0.5
+
+This confirms the reliability fix:
+
+    Before:
+    GPU backend unavailable -> API returned 502, but no inference log record was written.
+
+    After:
+    GPU backend unavailable -> API returned 502, wrote a failed inference log record, and updated metrics and incident signals.
+
+This is important because a production observability system must not lose failed backend calls. User-visible failures should become system-visible telemetry.
