@@ -69,12 +69,20 @@ def generate_with_template(request: GenerateRequest) -> dict:
         "tokens_out": request.tokens_out,
     }
 
-def generate_with_transformers(request: GenerateRequest) -> dict:
+def get_missing_transformers_dependencies() -> list[str]:
     missing_dependencies = []
+
     if importlib.util.find_spec("torch") is None:
         missing_dependencies.append("torch")
+
     if importlib.util.find_spec("transformers") is None:
         missing_dependencies.append("transformers")
+
+    return missing_dependencies
+
+
+def generate_with_transformers(request: GenerateRequest) -> dict:
+    missing_dependencies = get_missing_transformers_dependencies()
 
     if missing_dependencies:
         raise HTTPException(

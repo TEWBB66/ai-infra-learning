@@ -95,6 +95,19 @@ def test_gpu_model_server_rejects_unsupported_mode(monkeypatch):
     assert response.status_code == 500
     assert response.json()["detail"] == "unsupported GPU_MODEL_MODE: unsupported"
 
+def test_gpu_model_server_detects_missing_transformers_dependencies(monkeypatch):
+    from projects.gpu_model_server import main
+
+    def fake_find_spec(package_name):
+        if package_name == "torch":
+            return None
+        if package_name == "transformers":
+            return object()
+        return object()
+
+    monkeypatch.setattr(main.importlib.util, "find_spec", fake_find_spec)
+
+    assert main.get_missing_transformers_dependencies() == ["torch"]
 
 def test_gpu_model_server_transformers_mode_reports_missing_dependencies(monkeypatch):
     from projects.gpu_model_server import main
