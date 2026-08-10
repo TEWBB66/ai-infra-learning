@@ -185,3 +185,34 @@ def test_incident_report_endpoint():
 
     assert "suggested_actions" in data
     assert isinstance(data["suggested_actions"], list)
+
+def test_mock_infer_logs_backend_failure(monkeypatch, tmp_path):
+    from fastapi import HTTPException
+    from projects.ai_metrics_api import main
+
+    temp_log_path = tmp_path / "inference.log"
+
+    def fake_call_model_server(payload):
+        raise HTTPException(status_code=502, detail="model server is unavailable")
+
+    monkeypatch.setattr(main, "LOG_PATH", str(temp_log_path))
+    monkeypatch.setattr(main, "call_model_server", fake_call_model_server)
+
+    response = client.post(
+        "/v1/mock-infer",
+        json={
+            "model": "qwen2.5-0.5b",
+            "tokens_in": 100,
+            "tokens_out": 20,
+        },
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "model server is unavailable"
+
+    log_text = temp_log_path.read_text()
+    assert "model=qwen2.5-0.5b" in log_text
+    assert "endpoint=/v1/mock-infer" in log_text
+    assert "status=502" in log_text
+    assert "tokens_in=100" in log_text
+    assert "tokens_out=0" in log_text

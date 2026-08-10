@@ -195,16 +195,32 @@ def mock_infer(request: MockInferRequest):
             detail="force_status must be one of 200, 400, 429, 500",
         )
 
-    result = call_model_server(
-        {
-            "model": request.model,
-            "tokens_in": request.tokens_in,
-            "tokens_out": request.tokens_out,
-            "force_status": request.force_status,
-        }
-    )
-
     request_id = f"req-{uuid4().hex[:8]}"
+    start_time = time.perf_counter()
+
+    payload = {
+        "model": request.model,
+        "tokens_in": request.tokens_in,
+        "tokens_out": request.tokens_out,
+        "force_status": request.force_status,
+    }
+
+    try:
+        result = call_model_server(payload)
+    except HTTPException as exc:
+        latency_ms = max(1, int((time.perf_counter() - start_time) * 1000))
+        log_line = format_log_line(
+            request_id=request_id,
+            model=request.model,
+            endpoint="/v1/mock-infer",
+            status=exc.status_code,
+            latency_ms=latency_ms,
+            tokens_in=request.tokens_in,
+            tokens_out=0,
+        )
+        append_log_line(log_line)
+        raise exc
+
     log_line = format_log_line(
         request_id=request_id,
         model=result["model"],
