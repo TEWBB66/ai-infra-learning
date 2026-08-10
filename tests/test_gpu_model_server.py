@@ -214,12 +214,68 @@ def test_gpu_model_server_transformers_mode_reports_missing_dependencies(monkeyp
     )
 
 
-def test_gpu_model_server_transformers_mode_reports_not_implemented(monkeypatch):
+def test_gpu_model_server_transformers_mode_generates_response(monkeypatch):
     from projects.gpu_model_server import main
 
+    class FakeInputs(dict):
+        def to(self, device):
+            self["device"] = device
+            return self
+
+    class FakeTokenizer:
+        def __init__(self):
+            self.prompt = None
+            self.decoded = False
+
+        def __call__(self, prompt, return_tensors):
+            self.prompt = prompt
+            return FakeInputs({"input_ids": [1, 2, 3]})
+
+        def decode(self, output_ids, skip_special_tokens):
+            self.decoded = True
+            return "fake generated text"
+
+    class FakeModel:
+        def __init__(self):
+            self.generate_kwargs = None
+
+        def generate(self, **kwargs):
+            self.generate_kwargs = kwargs
+            return [[1, 2, 3, 4]]
+
+    class FakeCuda:
+        @staticmethod
+        def is_available():
+            return True
+
+    class FakeNoGrad:
+        def __enter__(self):
+            return None
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return None
+
+    class FakeTorch:
+        cuda = FakeCuda()
+
+        @staticmethod
+        def no_grad():
+            return FakeNoGrad()
+
+    fake_tokenizer = FakeTokenizer()
+    fake_model = FakeModel()
+
     monkeypatch.setattr(main, "GPU_MODEL_MODE", "transformers")
-    monkeypatch.setattr(main, "GPU_MODEL_NAME", "Qwen/Qwen2.5-0.5B-Instruct")
     monkeypatch.setattr(main.importlib.util, "find_spec", lambda package_name: object())
+    monkeypatch.setattr(
+        main,
+        "load_transformers_model",
+        lambda: {
+            "tokenizer": fake_tokenizer,
+            "model": fake_model,
+            "torch": FakeTorch,
+        },
+    )
 
     response = client.post(
         "/generate",
@@ -230,7 +286,17 @@ def test_gpu_model_server_transformers_mode_reports_not_implemented(monkeypatch)
         },
     )
 
-    assert response.status_code == 501
-    assert response.json()["detail"] == (
-        "transformers mode is not implemented yet for Qwen/Qwen2.5-0.5B-Instruct"
-    )
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["model"] == "qwen2.5-0.5b"
+    assert data["status"] == 200
+    assert data["tokens_in"] == 100
+    assert data["tokens_out"] == 20
+    assert data["latency_ms"] > 0
+
+    assert fake_tokenizer.prompt is not None
+    assert fake_tokenizer.decoded is True
+    assert fake_model.generate_kwargs["max_new_tokens"] == 20
+    assert fake_model.generate_kwargs["do_sample"] is False
+    assert fake_model.generate_kwargs["device"] == "cuda"

@@ -134,10 +134,44 @@ def generate_with_transformers(request: GenerateRequest) -> dict:
             ),
         )
 
-    raise HTTPException(
-        status_code=501,
-        detail=f"transformers mode is not implemented yet for {GPU_MODEL_NAME}",
+    runtime = load_transformers_model()
+    tokenizer = runtime["tokenizer"]
+    model = runtime["model"]
+    torch = runtime["torch"]
+
+    prompt = (
+        "You are a model backend used for an AI inference observability test. "
+        f"Generate a short response for model={request.model}, "
+        f"tokens_in={request.tokens_in}, tokens_out={request.tokens_out}."
     )
+
+    start_time = time.perf_counter()
+
+    inputs = tokenizer(prompt, return_tensors="pt")
+    if torch.cuda.is_available() and hasattr(inputs, "to"):
+        inputs = inputs.to("cuda")
+
+    max_new_tokens = max(request.tokens_out, 1)
+
+    with torch.no_grad():
+        output_ids = model.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            do_sample=False,
+        )
+
+    tokenizer.decode(output_ids[0], skip_special_tokens=True)
+
+    elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+    latency_ms = max(elapsed_ms, 1)
+
+    return {
+        "model": request.model,
+        "status": request.force_status or 200,
+        "latency_ms": latency_ms,
+        "tokens_in": request.tokens_in,
+        "tokens_out": request.tokens_out,
+    }
 
 @app.post("/generate", response_model=GenerateResponse)
 def generate(request: GenerateRequest):
