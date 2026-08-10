@@ -1,3 +1,4 @@
+import importlib
 import importlib.util
 import os
 import time
@@ -12,6 +13,9 @@ app = FastAPI(title="GPU Model Server")
 ALLOWED_STATUS_CODES = {200, 400, 429, 500}
 GPU_MODEL_MODE = os.getenv("GPU_MODEL_MODE", "template")
 GPU_MODEL_NAME = os.getenv("GPU_MODEL_NAME", "Qwen/Qwen2.5-0.5B-Instruct")
+_TRANSFORMERS_TOKENIZER = None
+_TRANSFORMERS_MODEL = None
+_TRANSFORMERS_TORCH = None
 
 class GenerateRequest(BaseModel):
     model: str
@@ -79,6 +83,43 @@ def get_missing_transformers_dependencies() -> list[str]:
         missing_dependencies.append("transformers")
 
     return missing_dependencies
+
+def load_transformers_model() -> dict:
+    global _TRANSFORMERS_TOKENIZER
+    global _TRANSFORMERS_MODEL
+    global _TRANSFORMERS_TORCH
+
+    if (
+        _TRANSFORMERS_TOKENIZER is not None
+        and _TRANSFORMERS_MODEL is not None
+        and _TRANSFORMERS_TORCH is not None
+    ):
+        return {
+            "tokenizer": _TRANSFORMERS_TOKENIZER,
+            "model": _TRANSFORMERS_MODEL,
+            "torch": _TRANSFORMERS_TORCH,
+        }
+
+    torch = importlib.import_module("torch")
+    transformers = importlib.import_module("transformers")
+
+    tokenizer = transformers.AutoTokenizer.from_pretrained(GPU_MODEL_NAME)
+    model = transformers.AutoModelForCausalLM.from_pretrained(GPU_MODEL_NAME)
+
+    if torch.cuda.is_available():
+        model = model.to("cuda")
+
+    model.eval()
+
+    _TRANSFORMERS_TOKENIZER = tokenizer
+    _TRANSFORMERS_MODEL = model
+    _TRANSFORMERS_TORCH = torch
+
+    return {
+        "tokenizer": tokenizer,
+        "model": model,
+        "torch": torch,
+    }
 
 
 def generate_with_transformers(request: GenerateRequest) -> dict:

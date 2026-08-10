@@ -95,6 +95,85 @@ def test_gpu_model_server_rejects_unsupported_mode(monkeypatch):
     assert response.status_code == 500
     assert response.json()["detail"] == "unsupported GPU_MODEL_MODE: unsupported"
 
+def test_gpu_model_server_load_transformers_model_returns_cached_runtime(monkeypatch):
+    from projects.gpu_model_server import main
+
+    cached_tokenizer = object()
+    cached_model = object()
+    cached_torch = object()
+
+    monkeypatch.setattr(main, "_TRANSFORMERS_TOKENIZER", cached_tokenizer)
+    monkeypatch.setattr(main, "_TRANSFORMERS_MODEL", cached_model)
+    monkeypatch.setattr(main, "_TRANSFORMERS_TORCH", cached_torch)
+
+    runtime = main.load_transformers_model()
+
+    assert runtime["tokenizer"] is cached_tokenizer
+    assert runtime["model"] is cached_model
+    assert runtime["torch"] is cached_torch
+
+
+def test_gpu_model_server_load_transformers_model_loads_and_caches_runtime(monkeypatch):
+    from projects.gpu_model_server import main
+
+    class FakeCuda:
+        @staticmethod
+        def is_available():
+            return True
+
+    class FakeTorch:
+        cuda = FakeCuda()
+
+    class FakeModel:
+        def __init__(self):
+            self.device = None
+            self.eval_called = False
+
+        def to(self, device):
+            self.device = device
+            return self
+
+        def eval(self):
+            self.eval_called = True
+
+    class FakeAutoTokenizer:
+        @staticmethod
+        def from_pretrained(model_name):
+            return {"tokenizer_for": model_name}
+
+    class FakeAutoModelForCausalLM:
+        @staticmethod
+        def from_pretrained(model_name):
+            return FakeModel()
+
+    class FakeTransformers:
+        AutoTokenizer = FakeAutoTokenizer
+        AutoModelForCausalLM = FakeAutoModelForCausalLM
+
+    def fake_import_module(module_name):
+        if module_name == "torch":
+            return FakeTorch
+        if module_name == "transformers":
+            return FakeTransformers
+        raise ImportError(module_name)
+
+    monkeypatch.setattr(main, "_TRANSFORMERS_TOKENIZER", None)
+    monkeypatch.setattr(main, "_TRANSFORMERS_MODEL", None)
+    monkeypatch.setattr(main, "_TRANSFORMERS_TORCH", None)
+    monkeypatch.setattr(main, "GPU_MODEL_NAME", "Qwen/Qwen2.5-0.5B-Instruct")
+    monkeypatch.setattr(main.importlib, "import_module", fake_import_module)
+
+    runtime = main.load_transformers_model()
+
+    assert runtime["tokenizer"] == {"tokenizer_for": "Qwen/Qwen2.5-0.5B-Instruct"}
+    assert runtime["model"].device == "cuda"
+    assert runtime["model"].eval_called is True
+    assert runtime["torch"] is FakeTorch
+
+    assert main._TRANSFORMERS_TOKENIZER is runtime["tokenizer"]
+    assert main._TRANSFORMERS_MODEL is runtime["model"]
+    assert main._TRANSFORMERS_TORCH is FakeTorch
+
 def test_gpu_model_server_detects_missing_transformers_dependencies(monkeypatch):
     from projects.gpu_model_server import main
 
