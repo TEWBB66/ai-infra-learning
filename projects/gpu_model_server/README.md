@@ -1,6 +1,6 @@
 # GPU Model Server
 
-This directory contains the remote GPU model server template for the AI inference observability project.
+This directory contains the remote GPU model server for the AI inference observability project.
 
 The service implements the backend protocol documented in:
 
@@ -14,8 +14,6 @@ It exposes:
 GET  /health
 POST /generate
 ```
-
-The current version returns protocol-compatible responses with estimated latency. It does not load a real model yet.
 
 ## Purpose
 
@@ -33,20 +31,94 @@ MODEL_BACKEND=remote_http
 MODEL_SERVER_URL=http://<gpu-server-host>:<port>/generate
 ```
 
-This allows `ai-metrics-api` to observe a real or semi-real GPU-hosted model backend without making GPU access a permanent dependency of the project.
+This allows `ai-metrics-api` to observe a GPU-hosted model backend without making GPU access a permanent dependency of the project.
 
-## Recommended First Real Model Path
+## Runtime Modes
 
-Use FastAPI + Transformers for the first GPU experiment.
+The GPU model server supports runtime modes through an environment variable:
 
-Recommended model options:
+```bash
+GPU_MODEL_MODE=template
+```
+
+Supported modes:
+
+```text
+template
+transformers
+```
+
+## Template Mode
+
+Template mode is the default mode.
+
+```bash
+GPU_MODEL_MODE=template
+```
+
+In this mode, the server does not load a real model. It returns protocol-compatible responses with estimated latency.
+
+This mode is useful for:
+
+- local development
+- protocol testing
+- API integration tests
+- validating the remote backend path without GPU dependencies
+
+Run template mode:
+
+```bash
+uvicorn projects.gpu_model_server.main:app --host 0.0.0.0 --port 8002
+```
+
+## Transformers Mode
+
+Transformers mode loads a Hugging Face causal language model and runs generation through `transformers`.
+
+```bash
+GPU_MODEL_MODE=transformers
+GPU_MODEL_NAME=Qwen/Qwen2.5-0.5B-Instruct
+```
+
+In this mode, the server:
+
+1. checks that `torch` and `transformers` are installed
+2. lazily loads tokenizer and model
+3. moves the model to CUDA if available
+4. builds a short prompt from the request
+5. runs `model.generate(...)`
+6. measures inference latency
+7. returns the same backend protocol response schema
+
+The response schema stays unchanged:
+
+```json
+{
+  "model": "qwen2.5-0.5b",
+  "status": 200,
+  "latency_ms": 123,
+  "tokens_in": 100,
+  "tokens_out": 20
+}
+```
+
+Keeping the response schema stable allows `ai-metrics-api`, Prometheus, Grafana, alerts, and incidents to work without changes.
+
+## Recommended First Real Model
+
+Start with the smaller model:
 
 ```text
 Qwen/Qwen2.5-0.5B-Instruct
-Qwen/Qwen2.5-1.5B-Instruct
 ```
 
-Start with the smaller model if GPU memory or setup time is limited.
+Only try a larger model after the smaller model works.
+
+Possible larger option:
+
+```text
+Qwen/Qwen2.5-1.5B-Instruct
+```
 
 The goal is not to demonstrate model quality. The goal is to validate the serving and observability chain:
 
@@ -59,18 +131,46 @@ client -> ai-metrics-api -> remote_http backend -> GPU model server -> inference
 Install these dependencies on the GPU server environment, not necessarily in the root project environment:
 
 ```bash
-pip install fastapi uvicorn torch transformers accelerate
+pip install fastapi uvicorn transformers accelerate
 ```
 
-If the GPU server already has PyTorch and CUDA installed, avoid reinstalling PyTorch unless necessary.
+Install or reuse PyTorch based on the GPU server CUDA version.
 
-## Local Template Run Command
-
-Run the template service:
+Before installing PyTorch, check whether it already exists:
 
 ```bash
+python - <<'PY'
+try:
+    import torch
+    print("torch version:", torch.__version__)
+    print("cuda available:", torch.cuda.is_available())
+    if torch.cuda.is_available():
+        print("cuda device:", torch.cuda.get_device_name(0))
+except ImportError:
+    print("torch is not installed")
+PY
+```
+
+If PyTorch with CUDA is already installed, avoid reinstalling it unless necessary.
+
+## Run Commands
+
+Run template mode:
+
+```bash
+GPU_MODEL_MODE=template \
 uvicorn projects.gpu_model_server.main:app --host 0.0.0.0 --port 8002
 ```
+
+Run transformers mode:
+
+```bash
+GPU_MODEL_MODE=transformers \
+GPU_MODEL_NAME=Qwen/Qwen2.5-0.5B-Instruct \
+uvicorn projects.gpu_model_server.main:app --host 0.0.0.0 --port 8002
+```
+
+## Verify the Server
 
 Health check:
 
@@ -93,7 +193,7 @@ When this service is running, configure `ai-metrics-api` with:
 ```bash
 MODEL_BACKEND=remote_http
 MODEL_SERVER_URL=http://<gpu-server-host>:8002/generate
-MODEL_SERVER_TIMEOUT_SECONDS=30
+MODEL_SERVER_TIMEOUT_SECONDS=60
 ```
 
 For local testing where both services run on the same machine:
@@ -101,7 +201,7 @@ For local testing where both services run on the same machine:
 ```bash
 MODEL_BACKEND=remote_http
 MODEL_SERVER_URL=http://127.0.0.1:8002/generate
-MODEL_SERVER_TIMEOUT_SECONDS=30
+MODEL_SERVER_TIMEOUT_SECONDS=60
 ```
 
 Then call:
@@ -112,93 +212,11 @@ curl -s -X POST http://127.0.0.1:8000/v1/mock-infer \
   -d '{"model":"qwen2.5-0.5b","tokens_in":100,"tokens_out":20}' | jq
 ```
 
-## Future Upgrade
+## Why Template Mode Remains the Default
 
-The next version can replace estimated latency with real model inference:
+The default mode stays lightweight because the main repository must remain reproducible without GPU access.
 
-1. Load tokenizer and model at service startup.
-2. Convert the request into a prompt.
-3. Run generation on GPU.
-4. Measure actual inference latency.
-5. Return the same response fields required by the backend protocol.
-
-The response schema should stay stable so the observability stack does not need to change.
-
-## Runtime Modes
-
-The GPU model server is designed to support runtime modes through an environment variable:
-
-```bash
-GPU_MODEL_MODE=template
-```
-
-Current supported mode:
-
-```text
-template
-```
-
-Planned future mode:
-
-```text
-transformers
-```
-
-### Template Mode
-
-Template mode is the default mode.
-
-```bash
-GPU_MODEL_MODE=template
-```
-
-In this mode, the server does not load a real model. It returns protocol-compatible responses with estimated latency.
-
-This mode is useful for:
-
-- local development
-- protocol testing
-- API integration tests
-- validating the remote backend path without GPU dependencies
-
-### Transformers Mode
-
-Transformers mode is planned for the remote GPU experiment.
-
-```bash
-GPU_MODEL_MODE=transformers
-GPU_MODEL_NAME=Qwen/Qwen2.5-0.5B-Instruct
-```
-
-In this mode, the server should:
-
-1. load a tokenizer and model at startup
-2. move the model to GPU when CUDA is available
-3. receive `/generate` requests
-4. build a prompt from the request
-5. run model generation
-6. measure real inference latency
-7. return the same protocol-compatible response body
-
-The response schema must remain unchanged:
-
-```json
-{
-  "model": "qwen2.5-0.5b",
-  "status": 200,
-  "latency_ms": 123,
-  "tokens_in": 100,
-  "tokens_out": 20
-}
-```
-
-Keeping the response schema stable allows `ai-metrics-api`, Prometheus, Grafana, alerts, and incidents to work without changes.
-
-### Why Template Mode Remains the Default
-
-The default mode should stay lightweight because the main repository must remain reproducible without GPU access.
-
-The remote GPU experiment should be optional:
+The remote GPU experiment is optional:
 
 ```text
 default local demo -> mock backend / template backend
