@@ -100,16 +100,22 @@ def load_transformers_model() -> dict:
             "torch": _TRANSFORMERS_TORCH,
         }
 
-    torch = importlib.import_module("torch")
-    transformers = importlib.import_module("transformers")
+    try:
+        torch = importlib.import_module("torch")
+        transformers = importlib.import_module("transformers")
 
-    tokenizer = transformers.AutoTokenizer.from_pretrained(GPU_MODEL_NAME)
-    model = transformers.AutoModelForCausalLM.from_pretrained(GPU_MODEL_NAME)
+        tokenizer = transformers.AutoTokenizer.from_pretrained(GPU_MODEL_NAME)
+        model = transformers.AutoModelForCausalLM.from_pretrained(GPU_MODEL_NAME)
 
-    if torch.cuda.is_available():
-        model = model.to("cuda")
+        if torch.cuda.is_available():
+            model = model.to("cuda")
 
-    model.eval()
+        model.eval()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"transformers model loading failed for {GPU_MODEL_NAME}: {exc}",
+        ) from exc
 
     _TRANSFORMERS_TOKENIZER = tokenizer
     _TRANSFORMERS_MODEL = model
@@ -120,7 +126,6 @@ def load_transformers_model() -> dict:
         "model": model,
         "torch": torch,
     }
-
 
 def generate_with_transformers(request: GenerateRequest) -> dict:
     missing_dependencies = get_missing_transformers_dependencies()
@@ -147,20 +152,28 @@ def generate_with_transformers(request: GenerateRequest) -> dict:
 
     start_time = time.perf_counter()
 
-    inputs = tokenizer(prompt, return_tensors="pt")
-    if torch.cuda.is_available() and hasattr(inputs, "to"):
-        inputs = inputs.to("cuda")
+    try:
+        inputs = tokenizer(prompt, return_tensors="pt")
+        if torch.cuda.is_available() and hasattr(inputs, "to"):
+            inputs = inputs.to("cuda")
 
-    max_new_tokens = max(request.tokens_out, 1)
+        max_new_tokens = max(request.tokens_out, 1)
 
-    with torch.no_grad():
-        output_ids = model.generate(
-            **inputs,
-            max_new_tokens=max_new_tokens,
-            do_sample=False,
-        )
+        with torch.no_grad():
+            output_ids = model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                do_sample=False,
+            )
 
-    tokenizer.decode(output_ids[0], skip_special_tokens=True)
+        tokenizer.decode(output_ids[0], skip_special_tokens=True)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"transformers generation failed for {request.model}: {exc}",
+        ) from exc
 
     elapsed_ms = int((time.perf_counter() - start_time) * 1000)
     latency_ms = max(elapsed_ms, 1)

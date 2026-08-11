@@ -300,3 +300,108 @@ def test_gpu_model_server_transformers_mode_generates_response(monkeypatch):
     assert fake_model.generate_kwargs["max_new_tokens"] == 20
     assert fake_model.generate_kwargs["do_sample"] is False
     assert fake_model.generate_kwargs["device"] == "cuda"
+
+def test_gpu_model_server_reports_transformers_model_loading_failure(monkeypatch):
+    from projects.gpu_model_server import main
+
+    class FakeTransformers:
+        class AutoTokenizer:
+            @staticmethod
+            def from_pretrained(model_name):
+                raise RuntimeError("download failed")
+
+        class AutoModelForCausalLM:
+            @staticmethod
+            def from_pretrained(model_name):
+                raise AssertionError("model loader should not be called")
+
+    class FakeTorch:
+        class cuda:
+            @staticmethod
+            def is_available():
+                return False
+
+    def fake_import_module(module_name):
+        if module_name == "torch":
+            return FakeTorch
+        if module_name == "transformers":
+            return FakeTransformers
+        raise ImportError(module_name)
+
+    monkeypatch.setattr(main, "GPU_MODEL_MODE", "transformers")
+    monkeypatch.setattr(main, "GPU_MODEL_NAME", "Qwen/Qwen2.5-0.5B-Instruct")
+    monkeypatch.setattr(main, "_TRANSFORMERS_TOKENIZER", None)
+    monkeypatch.setattr(main, "_TRANSFORMERS_MODEL", None)
+    monkeypatch.setattr(main, "_TRANSFORMERS_TORCH", None)
+    monkeypatch.setattr(main, "get_missing_transformers_dependencies", lambda: [])
+    monkeypatch.setattr(main.importlib, "import_module", fake_import_module)
+
+    response = client.post(
+        "/generate",
+        json={
+            "model": "qwen2.5-0.5b",
+            "tokens_in": 100,
+            "tokens_out": 20,
+        },
+    )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == (
+        "transformers model loading failed for Qwen/Qwen2.5-0.5B-Instruct: download failed"
+    )
+
+
+def test_gpu_model_server_reports_transformers_generation_failure(monkeypatch):
+    from projects.gpu_model_server import main
+
+    class FakeInputs(dict):
+        def to(self, device):
+            self["device"] = device
+            return self
+
+    class FakeTokenizer:
+        def __call__(self, prompt, return_tensors):
+            return FakeInputs({"input_ids": [1, 2, 3]})
+
+    class FakeModel:
+        def generate(self, **kwargs):
+            raise RuntimeError("cuda out of memory")
+
+    class FakeNoGrad:
+        def __enter__(self):
+            return None
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return None
+
+    class FakeCuda:
+        @staticmethod
+        def is_available():
+            return True
+
+    class FakeTorch:
+        cuda = FakeCuda()
+
+        @staticmethod
+        def no_grad():
+            return FakeNoGrad()
+
+    monkeypatch.setattr(main, "GPU_MODEL_MODE", "transformers")
+    monkeypatch.setattr(main, "_TRANSFORMERS_TOKENIZER", FakeTokenizer())
+    monkeypatch.setattr(main, "_TRANSFORMERS_MODEL", FakeModel())
+    monkeypatch.setattr(main, "_TRANSFORMERS_TORCH", FakeTorch)
+    monkeypatch.setattr(main, "get_missing_transformers_dependencies", lambda: [])
+
+    response = client.post(
+        "/generate",
+        json={
+            "model": "qwen2.5-0.5b",
+            "tokens_in": 100,
+            "tokens_out": 20,
+        },
+    )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == (
+        "transformers generation failed for qwen2.5-0.5b: cuda out of memory"
+    )
