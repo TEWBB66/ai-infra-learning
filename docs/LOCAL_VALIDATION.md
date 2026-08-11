@@ -137,3 +137,33 @@ A clean validation run should end with:
 Expected result:
 
     nothing to commit, working tree clean
+
+## Final Validation Results
+
+Final local validation was completed on 2026-08-11.
+
+Docker Compose validation passed:
+
+- pytest returned 39 passed, 1 warning
+- ai-metrics-api /health returned ok
+- ai-metrics-api /ready returned ready with backend=mock
+- mock-model-server /health returned ok
+- deterministic /v1/mock-infer with force_status=200 returned status=200
+- /metrics/logs returned aggregated request metrics
+- /metrics/prometheus exposed service-level and model-level metrics
+- Prometheus target API reported ai-metrics-api health=up
+- Grafana /api/health returned 200 OK
+- Grafana dashboard search found AI Metrics API Dashboard
+- Grafana dashboard JSON contains 7 panels, including model-level request count, error rate, and p95 latency panels
+
+Grafana API validation should use the admin password configured in docker-compose.yml.
+
+GPU final smoke test also passed on the A5000 host:
+
+- gpu-model-server /health returned ok
+- gpu-model-server /ready returned ready with mode=transformers
+- /generate returned status=200 for qwen2.5-0.5b
+- The service was stopped immediately after validation
+- GPU resources were released after the smoke test
+
+The GPU smoke test was intentionally short and used CUDA_VISIBLE_DEVICES=0.
