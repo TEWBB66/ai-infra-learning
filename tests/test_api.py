@@ -30,6 +30,49 @@ def test_health_check():
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
 
+def test_metrics_api_readiness_mock_backend(monkeypatch):
+    from projects.ai_metrics_api import main
+
+    monkeypatch.setattr(main, "MODEL_BACKEND", "mock")
+    monkeypatch.setattr(main, "MODEL_SERVER_URL", "http://mock-model-server:8001/generate")
+
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ready",
+        "service": "ai-metrics-api",
+        "backend": "mock",
+        "model_server_url": "http://mock-model-server:8001/generate",
+    }
+
+
+def test_metrics_api_readiness_remote_http_backend(monkeypatch):
+    from projects.ai_metrics_api import main
+
+    monkeypatch.setattr(main, "MODEL_BACKEND", "remote_http")
+    monkeypatch.setattr(main, "MODEL_SERVER_URL", "http://127.0.0.1:8002/generate")
+
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ready",
+        "service": "ai-metrics-api",
+        "backend": "remote_http",
+        "model_server_url": "http://127.0.0.1:8002/generate",
+    }
+
+
+def test_metrics_api_readiness_rejects_unsupported_backend(monkeypatch):
+    from projects.ai_metrics_api import main
+
+    monkeypatch.setattr(main, "MODEL_BACKEND", "unsupported")
+
+    response = client.get("/ready")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "unsupported MODEL_BACKEND: unsupported"
 
 def test_metrics_logs():
     response = client.get("/metrics/logs")

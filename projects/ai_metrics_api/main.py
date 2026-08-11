@@ -16,6 +16,7 @@ from projects.ai_metrics_api.config import (
     ALLOWED_FORCE_STATUS_CODES,
     DEFAULT_SLOW_THRESHOLD_MS,
     LOG_PATH,
+    MODEL_BACKEND,
     MODEL_SERVER_URL,
     MODEL_ERROR_RATE_CRITICAL_THRESHOLD,
     MODEL_ERROR_RATE_WARNING_THRESHOLD,
@@ -183,6 +184,21 @@ def health_check():
         "status": "ok",
         "service": "ai-metrics-api",
     }
+
+@app.get("/ready")
+def readiness_check():
+    if MODEL_BACKEND in {"mock", "remote_http"}:
+        return {
+            "status": "ready",
+            "service": "ai-metrics-api",
+            "backend": MODEL_BACKEND,
+            "model_server_url": MODEL_SERVER_URL,
+        }
+
+    raise HTTPException(
+        status_code=503,
+        detail=f"unsupported MODEL_BACKEND: {MODEL_BACKEND}",
+    )
 
 @app.post("/v1/mock-infer")
 def mock_infer(request: MockInferRequest):
