@@ -52,6 +52,38 @@ def health_check():
     }
 
 
+
+@app.get("/ready")
+def readiness_check():
+    if GPU_MODEL_MODE == "template":
+        return {
+            "status": "ready",
+            "mode": GPU_MODEL_MODE,
+        }
+
+    if GPU_MODEL_MODE == "transformers":
+        missing_dependencies = get_missing_transformers_dependencies()
+        if missing_dependencies:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "transformers mode is not ready; missing dependencies: "
+                    + ", ".join(missing_dependencies)
+                ),
+            )
+
+        return {
+            "status": "ready",
+            "mode": GPU_MODEL_MODE,
+            "model": GPU_MODEL_NAME,
+        }
+
+    raise HTTPException(
+        status_code=503,
+        detail=f"unsupported GPU_MODEL_MODE: {GPU_MODEL_MODE}",
+    )
+
+
 def generate_with_template(request: GenerateRequest) -> dict:
     start_time = time.perf_counter()
 

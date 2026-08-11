@@ -16,6 +16,67 @@ def test_gpu_model_server_health_check():
     }
 
 
+
+def test_gpu_model_server_readiness_template_mode(monkeypatch):
+    from projects.gpu_model_server import main
+
+    monkeypatch.setattr(main, "GPU_MODEL_MODE", "template")
+
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ready",
+        "mode": "template",
+    }
+
+
+def test_gpu_model_server_readiness_transformers_mode_ready(monkeypatch):
+    from projects.gpu_model_server import main
+
+    monkeypatch.setattr(main, "GPU_MODEL_MODE", "transformers")
+    monkeypatch.setattr(main, "GPU_MODEL_NAME", "Qwen/Qwen2.5-0.5B-Instruct")
+    monkeypatch.setattr(main, "get_missing_transformers_dependencies", lambda: [])
+
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ready",
+        "mode": "transformers",
+        "model": "Qwen/Qwen2.5-0.5B-Instruct",
+    }
+
+
+def test_gpu_model_server_readiness_transformers_mode_missing_dependencies(monkeypatch):
+    from projects.gpu_model_server import main
+
+    monkeypatch.setattr(main, "GPU_MODEL_MODE", "transformers")
+    monkeypatch.setattr(
+        main,
+        "get_missing_transformers_dependencies",
+        lambda: ["torch", "transformers"],
+    )
+
+    response = client.get("/ready")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == (
+        "transformers mode is not ready; missing dependencies: torch, transformers"
+    )
+
+
+def test_gpu_model_server_readiness_unsupported_mode(monkeypatch):
+    from projects.gpu_model_server import main
+
+    monkeypatch.setattr(main, "GPU_MODEL_MODE", "unsupported")
+
+    response = client.get("/ready")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "unsupported GPU_MODEL_MODE: unsupported"
+
+
 def test_gpu_model_server_generate_success(monkeypatch):
     from projects.gpu_model_server import main
 
