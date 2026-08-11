@@ -232,3 +232,66 @@ Interpretation:
 The first request was slower because of model warmup. After warmup, requests 2 through 10 stayed around 343-354 ms.
 
 This shows that the system can observe repeated successful GPU inference traffic, not only one-off GPU backend validation.
+
+## Large Token Latency Experiment
+
+A small-vs-large request comparison was run against the real GPU backend.
+
+The goal was to verify that the observability pipeline can reflect workload-driven latency changes.
+
+Small request shape:
+
+    model: qwen2.5-0.5b-small
+    tokens_in: 100
+    tokens_out: 20
+
+Small request latency:
+
+    request 1: 1393 ms
+    request 2: 352 ms
+    request 3: 352 ms
+
+Small request metrics:
+
+    request_count: 3
+    error_count: 0
+    avg_latency_ms: 699.0
+    p95_latency_ms: 1393
+    error_rate: 0.0
+
+Large request shape:
+
+    model: qwen2.5-0.5b-large
+    tokens_in: 800
+    tokens_out: 100
+
+Large request latency:
+
+    request 1: 1703 ms
+    request 2: 1683 ms
+    request 3: 1673 ms
+
+Large request metrics:
+
+    request_count: 3
+    error_count: 0
+    avg_latency_ms: 1686.33
+    p95_latency_ms: 1703
+    error_rate: 0.0
+
+Prometheus comparison:
+
+    ai_inference_model_requests{model="qwen2.5-0.5b-small"} 3
+    ai_inference_model_requests{model="qwen2.5-0.5b-large"} 3
+    ai_inference_model_errors{model="qwen2.5-0.5b-small"} 0
+    ai_inference_model_errors{model="qwen2.5-0.5b-large"} 0
+    ai_inference_model_error_rate{model="qwen2.5-0.5b-small"} 0.0
+    ai_inference_model_error_rate{model="qwen2.5-0.5b-large"} 0.0
+    ai_inference_model_p95_latency_ms{model="qwen2.5-0.5b-small"} 1393
+    ai_inference_model_p95_latency_ms{model="qwen2.5-0.5b-large"} 1703
+
+Interpretation:
+
+The large request had much higher latency than the warmed-up small requests. The small request stabilized at about 352 ms after warmup, while the large request stayed around 1673-1703 ms.
+
+This shows that the observability pipeline can capture workload-driven latency differences for a real GPU backend.
