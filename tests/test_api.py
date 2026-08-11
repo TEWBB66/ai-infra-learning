@@ -132,7 +132,13 @@ def fake_call_model_server(payload):
     }
 
 
-def test_mock_infer_success(monkeypatch):
+def test_mock_infer_success(monkeypatch, tmp_path):
+    temp_log_path = tmp_path / "inference.log"
+    monkeypatch.setattr(
+        "projects.ai_metrics_api.main.LOG_PATH",
+        str(temp_log_path),
+    )
+
     monkeypatch.setattr(
         "projects.ai_metrics_api.main.call_model_server",
         fake_call_model_server,
