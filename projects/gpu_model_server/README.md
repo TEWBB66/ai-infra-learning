@@ -222,3 +222,49 @@ The remote GPU experiment is optional:
 default local demo -> mock backend / template backend
 short-term GPU validation -> remote_http backend + transformers mode
 ```
+
+## Readiness and Structured Errors
+
+The GPU model server exposes two health-style endpoints:
+
+    GET /health
+    GET /ready
+
+`/health` only checks whether the service process is alive.
+
+`/ready` checks whether the selected runtime mode is ready to serve requests.
+
+Template mode readiness response:
+
+    {
+      "status": "ready",
+      "mode": "template"
+    }
+
+Transformers mode readiness response:
+
+    {
+      "status": "ready",
+      "mode": "transformers",
+      "model": "Qwen/Qwen2.5-0.5B-Instruct"
+    }
+
+If transformers dependencies are missing, `/ready` returns 503:
+
+    {
+      "detail": "transformers mode is not ready; missing dependencies: torch, transformers"
+    }
+
+If the selected GPU model mode is unsupported, `/ready` returns 503:
+
+    {
+      "detail": "unsupported GPU_MODEL_MODE: unsupported"
+    }
+
+The transformers runtime also returns structured errors for expected failure classes:
+
+    transformers mode requires missing dependencies: torch, transformers
+    transformers model loading failed for Qwen/Qwen2.5-0.5B-Instruct: <error>
+    transformers generation failed for qwen2.5-0.5b: <error>
+
+This separates liveness from readiness and makes backend failures easier to diagnose during deployment and GPU experiments.
