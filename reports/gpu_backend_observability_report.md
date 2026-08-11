@@ -195,3 +195,40 @@ This confirms the reliability fix:
     GPU backend unavailable -> API returned 502, wrote a failed inference log record, and updated metrics and incident signals.
 
 This is important because a production observability system must not lose failed backend calls. User-visible failures should become system-visible telemetry.
+
+## GPU Stability Sample Experiment
+
+A 10-request stability sample was run against the real GPU backend.
+
+Request shape:
+
+    model: qwen2.5-0.5b
+    tokens_in: 100
+    tokens_out: 20
+
+Observed latency:
+
+    request 1: 1369 ms
+    request 2: 350 ms
+    request 3: 352 ms
+    request 4: 352 ms
+    request 5: 354 ms
+    request 6: 352 ms
+    request 7: 343 ms
+    request 8: 351 ms
+    request 9: 349 ms
+    request 10: 351 ms
+
+Metrics summary:
+
+    request_count: 12
+    error_count: 1
+    avg_latency_ms: 416.17
+    p95_latency_ms: 399
+    error_rate: 0.0833
+
+Interpretation:
+
+The first request was slower because of model warmup. After warmup, requests 2 through 10 stayed around 343-354 ms.
+
+This shows that the system can observe repeated successful GPU inference traffic, not only one-off GPU backend validation.
