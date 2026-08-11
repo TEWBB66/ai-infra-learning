@@ -18,7 +18,12 @@
     {
       "type": "stat",
       "title": "Total Requests",
-      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
       "targets": [
         {
           "expr": "ai_inference_total_requests",
@@ -33,7 +38,12 @@
     {
       "type": "stat",
       "title": "Error Rate",
-      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
       "targets": [
         {
           "expr": "ai_inference_error_rate",
@@ -48,7 +58,12 @@
     {
       "type": "stat",
       "title": "P95 Latency",
-      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
       "targets": [
         {
           "expr": "ai_inference_p95_latency_ms",
@@ -63,7 +78,12 @@
     {
       "type": "stat",
       "title": "Slow Requests",
-      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
       "targets": [
         {
           "expr": "ai_inference_slow_request_count",
@@ -74,6 +94,60 @@
         "type": "prometheus",
         "uid": "prometheus"
       }
+    },
+    {
+      "type": "timeseries",
+      "title": "Model Request Count",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "ai_inference_model_requests",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "id": 1
+    },
+    {
+      "type": "timeseries",
+      "title": "Model Error Rate",
+      "gridPos": {
+        "x": 8,
+        "y": 4,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "ai_inference_model_error_rate",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "id": 2
+    },
+    {
+      "type": "timeseries",
+      "title": "Model P95 Latency",
+      "gridPos": {
+        "x": 16,
+        "y": 4,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "ai_inference_model_p95_latency_ms",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "id": 3
     }
   ]
 }
