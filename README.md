@@ -234,3 +234,85 @@ Planned improvements:
 5. Improve structured error handling.
 6. Add a load test report with concrete metrics.
 7. Polish final project documentation and resume bullets.
+
+## Current Project Status
+
+This project has evolved from a mock inference metrics API into a small AI inference observability and reliability platform.
+
+It currently supports:
+
+- FastAPI metrics API for inference requests, structured logs, model metrics, alerts, incidents, and Prometheus metrics
+- Mock model server for reproducible local experiments
+- Remote HTTP backend mode for connecting the metrics API to an external model server
+- GPU model server template with both template mode and transformers mode
+- Real GPU backend validation using Qwen/Qwen2.5-0.5B-Instruct on an NVIDIA RTX A5000
+- Model-level Prometheus metrics
+- Grafana dashboard panels for service-level and model-level observability
+- Backend failure logging so unavailable model backends become visible in logs, metrics, and incidents
+- GPU model server readiness endpoint separating process health from backend readiness
+
+## Architecture
+
+    client
+      -> ai-metrics-api
+      -> model backend
+          -> mock-model-server
+          -> remote_http GPU model server
+      -> inference log
+      -> metrics APIs
+      -> Prometheus
+      -> Grafana
+
+## Backend Modes
+
+The metrics API supports two backend modes:
+
+    MODEL_BACKEND=mock
+    MODEL_BACKEND=remote_http
+
+The mock backend is used for repeatable local development and tests.
+
+The remote_http backend allows the same observability pipeline to call a separate model server, including a GPU-backed server running on a remote machine.
+
+The GPU model server supports:
+
+    GPU_MODEL_MODE=template
+    GPU_MODEL_MODE=transformers
+
+Template mode returns protocol-compatible responses with estimated latency.
+
+Transformers mode runs a real Hugging Face Transformers model and returns protocol-compatible inference metrics.
+
+## GPU Validation
+
+The project includes a real GPU backend validation report:
+
+    reports/gpu_backend_observability_report.md
+
+The report covers:
+
+- Running Qwen/Qwen2.5-0.5B-Instruct on an NVIDIA RTX A5000
+- Routing ai-metrics-api traffic to the GPU model server through remote_http
+- Recording successful GPU-backed inference requests
+- Observing backend failure as 502 responses, failed inference logs, metrics, and incident signals
+- Running a 10-request stability sample
+- Comparing small-token and large-token latency
+
+## Reliability Work
+
+The project includes several reliability-focused behaviors:
+
+- Failed backend calls are written to the inference log
+- Backend unavailable errors are exposed as structured 502 responses
+- Transformers dependency, model loading, and generation failures return structured errors
+- GPU model server exposes both /health and /ready
+- /ready checks whether the selected runtime mode is actually ready to serve requests
+
+This makes the project useful for discussing AI infrastructure reliability, not only model serving.
+
+## Key Documentation
+
+- `docs/MODEL_BACKEND_PROTOCOL.md`
+- `docs/GPU_SERVER_SETUP.md`
+- `projects/gpu_model_server/README.md`
+- `reports/gpu_backend_observability_report.md`
