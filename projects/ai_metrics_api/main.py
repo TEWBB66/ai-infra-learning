@@ -1,11 +1,10 @@
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
-import random
 import time
 
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from fastapi.responses import PlainTextResponse
 
@@ -28,7 +27,6 @@ from projects.ai_metrics_api.config import (
     SERVICE_P95_LATENCY_WARNING_MS,
     SERVICE_SLOW_REQUEST_CRITICAL_COUNT,
     SERVICE_SLOW_REQUEST_WARNING_COUNT,
-    MODEL_SERVER_TIMEOUT_SECONDS,
 )
 
 app = FastAPI()
@@ -125,48 +123,6 @@ class MockInferRequest(BaseModel):
     tokens_in: int = Field(default=256, ge=0)
     tokens_out: int = Field(default=80, ge=0)
     force_status: Optional[int] = None
-
-
-def estimate_latency_ms(model: str, tokens_in: int, tokens_out: int) -> int:
-    base_latency_by_model = {
-        "qwen2.5-7b": 120,
-        "qwen2.5-14b": 260,
-        "bge-reranker": 60,
-    }
-
-    base_latency = base_latency_by_model.get(model, 180)
-    token_latency = int(tokens_in * 0.08 + tokens_out * 0.6)
-    jitter = random.randint(0, 80)
-
-    return base_latency + token_latency + jitter
-
-
-def build_log_line(
-    request_id: str,
-    model: str,
-    endpoint: str,
-    status: int,
-    latency_ms: int,
-    tokens_in: int,
-    tokens_out: int,
-) -> str:
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    return (
-        f"{timestamp} "
-        f"request_id={request_id} "
-        f"model={model} "
-        f"endpoint={endpoint} "
-        f"status={status} "
-        f"latency_ms={latency_ms} "
-        f"tokens_in={tokens_in} "
-        f"tokens_out={tokens_out}"
-    )
-
-
-def append_log_line(line: str):
-    with open(LOG_PATH, "a", encoding="utf-8") as f:
-        f.write(line + "\n")
 
 def load_records():
     records = []
