@@ -1,6 +1,6 @@
 import os
 
-LOG_PATH = "data/day02/inference.log"
+LOG_PATH = os.getenv("INFERENCE_LOG_PATH", "data/day02/inference.log")
 
 DEFAULT_SLOW_THRESHOLD_MS = 200
 
