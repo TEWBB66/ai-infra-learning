@@ -117,9 +117,9 @@ def build_alerts(metrics):
         "alerts": alerts,
     }
 
-class MockInferRequest(BaseModel):
+class InferRequest(BaseModel):
     model: str = "qwen2.5-7b"
-    endpoint: str = "/v1/mock-infer"
+    endpoint: str = "/v1/infer"
     tokens_in: int = Field(default=256, ge=0)
     tokens_out: int = Field(default=80, ge=0)
     force_status: Optional[int] = None
@@ -156,8 +156,7 @@ def readiness_check():
         detail=f"unsupported MODEL_BACKEND: {MODEL_BACKEND}",
     )
 
-@app.post("/v1/mock-infer")
-def mock_infer(request: MockInferRequest):
+def handle_infer(request: InferRequest, endpoint: str):
     if (
         request.force_status is not None
         and request.force_status not in ALLOWED_FORCE_STATUS_CODES
@@ -184,7 +183,7 @@ def mock_infer(request: MockInferRequest):
         log_line = format_log_line(
             request_id=request_id,
             model=request.model,
-            endpoint="/v1/mock-infer",
+            endpoint=endpoint,
             status=exc.status_code,
             latency_ms=latency_ms,
             tokens_in=request.tokens_in,
@@ -196,7 +195,7 @@ def mock_infer(request: MockInferRequest):
     log_line = format_log_line(
         request_id=request_id,
         model=result["model"],
-        endpoint="/v1/mock-infer",
+        endpoint=endpoint,
         status=result["status"],
         latency_ms=result["latency_ms"],
         tokens_in=result["tokens_in"],
@@ -208,6 +207,15 @@ def mock_infer(request: MockInferRequest):
         "request_id": request_id,
         **result,
     }
+
+@app.post("/v1/infer")
+def infer(request: InferRequest):
+    return handle_infer(request, endpoint="/v1/infer")
+
+
+@app.post("/v1/mock-infer")
+def mock_infer(request: InferRequest):
+    return handle_infer(request, endpoint="/v1/mock-infer")
 
 @app.get("/metrics/logs")
 def get_log_metrics():
