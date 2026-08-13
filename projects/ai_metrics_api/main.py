@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from threading import Lock
 from typing import Optional
 from uuid import uuid4
 import time
@@ -15,6 +16,7 @@ from projects.ai_metrics_api.config import (
     ALLOWED_FORCE_STATUS_CODES,
     DEFAULT_SLOW_THRESHOLD_MS,
     LOG_PATH,
+    MAX_IN_FLIGHT_REQUESTS,
     MODEL_BACKEND,
     MODEL_SERVER_URL,
     MODEL_ERROR_RATE_CRITICAL_THRESHOLD,
@@ -30,6 +32,28 @@ from projects.ai_metrics_api.config import (
 )
 
 app = FastAPI()
+
+class InferenceGate:
+    def __init__(self, max_in_flight: int):
+        self.max_in_flight = max_in_flight
+        self.current_in_flight = 0
+        self._lock = Lock()
+
+    def try_acquire(self) -> bool:
+        with self._lock:
+            if self.current_in_flight >= self.max_in_flight:
+                return False
+
+            self.current_in_flight += 1
+            return True
+
+    def release(self) -> None:
+        with self._lock:
+            if self.current_in_flight > 0:
+                self.current_in_flight -= 1
+
+
+INFERENCE_GATE = InferenceGate(MAX_IN_FLIGHT_REQUESTS)
 
 def format_log_line(
     request_id: str,
@@ -169,44 +193,64 @@ def handle_infer(request: InferRequest, endpoint: str):
     request_id = f"req-{uuid4().hex[:8]}"
     start_time = time.perf_counter()
 
-    payload = {
-        "model": request.model,
-        "tokens_in": request.tokens_in,
-        "tokens_out": request.tokens_out,
-        "force_status": request.force_status,
-    }
-
-    try:
-        result = call_model_server(payload)
-    except HTTPException as exc:
+    if not INFERENCE_GATE.try_acquire():
         latency_ms = max(1, int((time.perf_counter() - start_time) * 1000))
         log_line = format_log_line(
             request_id=request_id,
             model=request.model,
             endpoint=endpoint,
-            status=exc.status_code,
+            status=429,
             latency_ms=latency_ms,
             tokens_in=request.tokens_in,
             tokens_out=0,
         )
         append_log_line(log_line)
-        raise exc
+        raise HTTPException(
+            status_code=429,
+            detail="too many in-flight inference requests",
+        )
 
-    log_line = format_log_line(
-        request_id=request_id,
-        model=result["model"],
-        endpoint=endpoint,
-        status=result["status"],
-        latency_ms=result["latency_ms"],
-        tokens_in=result["tokens_in"],
-        tokens_out=result["tokens_out"],
-    )
-    append_log_line(log_line)
+    try:
+        payload = {
+            "model": request.model,
+            "tokens_in": request.tokens_in,
+            "tokens_out": request.tokens_out,
+            "force_status": request.force_status,
+        }
 
-    return {
-        "request_id": request_id,
-        **result,
-    }
+        try:
+            result = call_model_server(payload)
+        except HTTPException as exc:
+            latency_ms = max(1, int((time.perf_counter() - start_time) * 1000))
+            log_line = format_log_line(
+                request_id=request_id,
+                model=request.model,
+                endpoint=endpoint,
+                status=exc.status_code,
+                latency_ms=latency_ms,
+                tokens_in=request.tokens_in,
+                tokens_out=0,
+            )
+            append_log_line(log_line)
+            raise exc
+
+        log_line = format_log_line(
+            request_id=request_id,
+            model=result["model"],
+            endpoint=endpoint,
+            status=result["status"],
+            latency_ms=result["latency_ms"],
+            tokens_in=result["tokens_in"],
+            tokens_out=result["tokens_out"],
+        )
+        append_log_line(log_line)
+
+        return {
+            "request_id": request_id,
+            **result,
+        }
+    finally:
+        INFERENCE_GATE.release()
 
 @app.post("/v1/infer")
 def infer(request: InferRequest):
@@ -383,9 +427,20 @@ def get_prometheus_metrics():
         "# HELP ai_inference_slow_request_count Number of slow inference requests",
         "# TYPE ai_inference_slow_request_count gauge",
         f"ai_inference_slow_request_count {metrics['slow_request_count']}",
+        "# HELP ai_inference_current_in_flight_requests Current in-flight inference requests",
+        "# TYPE ai_inference_current_in_flight_requests gauge",
+        f"ai_inference_current_in_flight_requests {INFERENCE_GATE.current_in_flight}",
+        "# HELP ai_inference_status_requests Number of inference requests by status code",
+        "# TYPE ai_inference_status_requests gauge",
         "# HELP ai_inference_model_requests Number of inference requests by model",
         "# TYPE ai_inference_model_requests gauge",
     ]
+
+    for status, request_count in metrics.get("requests_by_status", {}).items():
+        status_label = _escape_prometheus_label(status)
+        lines.append(
+            f'ai_inference_status_requests{{status="{status_label}"}} {request_count}'
+        )
 
     for model_name, model_metrics in metrics["metrics_by_model"].items():
         model_label = _escape_prometheus_label(model_name)

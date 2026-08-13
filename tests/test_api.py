@@ -329,3 +329,127 @@ def test_infer_logs_backend_failure(monkeypatch, tmp_path):
     assert "status=502" in log_text
     assert "tokens_in=100" in log_text
     assert "tokens_out=0" in log_text
+
+def test_infer_rejects_when_in_flight_limit_is_reached(monkeypatch, tmp_path):
+    from projects.ai_metrics_api import main
+
+    class RejectingGate:
+        current_in_flight = 0
+
+        def try_acquire(self):
+            return False
+
+        def release(self):
+            raise AssertionError("release should not be called when acquire fails")
+
+    temp_log_path = tmp_path / "inference.log"
+
+    monkeypatch.setattr(main, "LOG_PATH", str(temp_log_path))
+    monkeypatch.setattr(main, "INFERENCE_GATE", RejectingGate())
+
+    response = client.post(
+        "/v1/infer",
+        json={
+            "model": "qwen2.5-7b",
+            "tokens_in": 100,
+            "tokens_out": 20,
+        },
+    )
+
+    assert response.status_code == 429
+    assert response.json()["detail"] == "too many in-flight inference requests"
+
+    log_text = temp_log_path.read_text()
+    assert "endpoint=/v1/infer" in log_text
+    assert "status=429" in log_text
+    assert "tokens_in=100" in log_text
+    assert "tokens_out=0" in log_text
+
+
+def test_infer_releases_in_flight_slot_after_success(monkeypatch, tmp_path):
+    from projects.ai_metrics_api import main
+
+    class RecordingGate:
+        def __init__(self):
+            self.current_in_flight = 0
+
+        def try_acquire(self):
+            self.current_in_flight += 1
+            return True
+
+        def release(self):
+            self.current_in_flight -= 1
+
+    gate = RecordingGate()
+    temp_log_path = tmp_path / "inference.log"
+
+    monkeypatch.setattr(main, "LOG_PATH", str(temp_log_path))
+    monkeypatch.setattr(main, "INFERENCE_GATE", gate)
+    monkeypatch.setattr(main, "call_model_server", fake_call_model_server)
+
+    response = client.post(
+        "/v1/infer",
+        json={
+            "model": "bge-reranker",
+            "tokens_in": 10,
+            "tokens_out": 0,
+        },
+    )
+
+    assert response.status_code == 200
+    assert gate.current_in_flight == 0
+
+
+def test_infer_releases_in_flight_slot_after_backend_failure(monkeypatch, tmp_path):
+    from fastapi import HTTPException
+    from projects.ai_metrics_api import main
+
+    class RecordingGate:
+        def __init__(self):
+            self.current_in_flight = 0
+
+        def try_acquire(self):
+            self.current_in_flight += 1
+            return True
+
+        def release(self):
+            self.current_in_flight -= 1
+
+    gate = RecordingGate()
+    temp_log_path = tmp_path / "inference.log"
+
+    def fake_call_model_server(payload):
+        raise HTTPException(status_code=502, detail="model server is unavailable")
+
+    monkeypatch.setattr(main, "LOG_PATH", str(temp_log_path))
+    monkeypatch.setattr(main, "INFERENCE_GATE", gate)
+    monkeypatch.setattr(main, "call_model_server", fake_call_model_server)
+
+    response = client.post(
+        "/v1/infer",
+        json={
+            "model": "qwen2.5-0.5b",
+            "tokens_in": 100,
+            "tokens_out": 20,
+        },
+    )
+
+    assert response.status_code == 502
+    assert gate.current_in_flight == 0
+
+
+def test_prometheus_metrics_include_in_flight_and_status_metrics(monkeypatch):
+    from projects.ai_metrics_api import main
+
+    class FakeGate:
+        current_in_flight = 3
+
+    monkeypatch.setattr(main, "INFERENCE_GATE", FakeGate())
+
+    response = client.get("/metrics/prometheus")
+
+    assert response.status_code == 200
+
+    body = response.text
+    assert "ai_inference_current_in_flight_requests 3" in body
+    assert "ai_inference_status_requests" in body

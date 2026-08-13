@@ -27,3 +27,4 @@ MODEL_SERVER_URL = os.getenv(
     "http://mock-model-server:8001/generate",
 )
 MODEL_SERVER_TIMEOUT_SECONDS = float(os.getenv("MODEL_SERVER_TIMEOUT_SECONDS", "5.0"))
+MAX_IN_FLIGHT_REQUESTS = int(os.getenv("MAX_IN_FLIGHT_REQUESTS", "8"))
