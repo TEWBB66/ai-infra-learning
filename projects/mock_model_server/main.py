@@ -1,3 +1,5 @@
+import os
+import time
 from random import random
 from typing import Optional
 
@@ -8,7 +10,7 @@ from pydantic import BaseModel, Field
 app = FastAPI(title="Mock Model Server")
 
 ALLOWED_STATUS_CODES = {200, 400, 429, 500}
-
+MOCK_MODEL_DELAY_SCALE = float(os.getenv("MOCK_MODEL_DELAY_SCALE", "0"))
 
 class GenerateRequest(BaseModel):
     model: str
@@ -62,6 +64,8 @@ def generate(request: GenerateRequest):
         request.tokens_in,
         request.tokens_out,
     )
+    if MOCK_MODEL_DELAY_SCALE > 0:
+        time.sleep((latency_ms / 1000) * MOCK_MODEL_DELAY_SCALE)
 
     return {
         "model": request.model,
