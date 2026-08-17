@@ -64,6 +64,25 @@ def test_metrics_api_readiness_remote_http_backend(monkeypatch):
     }
 
 
+def test_metrics_api_readiness_vllm_backend(monkeypatch):
+    from projects.ai_metrics_api import main
+
+    monkeypatch.setattr(main, "MODEL_BACKEND", "vllm")
+    monkeypatch.setattr(main, "VLLM_BASE_URL", "http://127.0.0.1:8001/v1")
+    monkeypatch.setattr(main, "VLLM_MODEL", "Qwen/Qwen2.5-1.5B-Instruct")
+
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ready",
+        "service": "ai-metrics-api",
+        "backend": "vllm",
+        "vllm_base_url": "http://127.0.0.1:8001/v1",
+        "vllm_model": "Qwen/Qwen2.5-1.5B-Instruct",
+    }
+
+
 def test_metrics_api_readiness_rejects_unsupported_backend(monkeypatch):
     from projects.ai_metrics_api import main
 
@@ -128,7 +147,7 @@ def fake_call_model_server(payload):
         "status": payload.get("force_status") or 200,
         "latency_ms": 66,
         "tokens_in": payload["tokens_in"],
-        "tokens_out": payload["tokens_out"],
+        "tokens_out": payload["max_tokens"] or payload["tokens_out"],
     }
 
 

@@ -9,6 +9,11 @@ services:
     environment:
       - INFERENCE_LOG_PATH=${INFERENCE_LOG_PATH:-/app/data/day02/inference.log}
       - MAX_IN_FLIGHT_REQUESTS=${MAX_IN_FLIGHT_REQUESTS:-8}
+      - MODEL_BACKEND=${MODEL_BACKEND:-mock}
+      - MOCK_MODEL_SERVER_URL=${MOCK_MODEL_SERVER_URL:-http://mock-model-server:8001/generate}
+      - VLLM_BASE_URL=${VLLM_BASE_URL:-http://host.docker.internal:8001/v1}
+      - VLLM_MODEL=${VLLM_MODEL:-Qwen/Qwen2.5-1.5B-Instruct}
+      - MODEL_SERVER_TIMEOUT_SEC=${MODEL_SERVER_TIMEOUT_SEC:-30}
     depends_on:
       - mock-model-server
 

@@ -19,6 +19,8 @@ from projects.ai_metrics_api.config import (
     MAX_IN_FLIGHT_REQUESTS,
     MODEL_BACKEND,
     MODEL_SERVER_URL,
+    VLLM_BASE_URL,
+    VLLM_MODEL,
     MODEL_ERROR_RATE_CRITICAL_THRESHOLD,
     MODEL_ERROR_RATE_WARNING_THRESHOLD,
     MODEL_P95_LATENCY_CRITICAL_MS,
@@ -146,6 +148,9 @@ class InferRequest(BaseModel):
     endpoint: str = "/v1/infer"
     tokens_in: int = Field(default=256, ge=0)
     tokens_out: int = Field(default=80, ge=0)
+    prompt: Optional[str] = None
+    max_tokens: Optional[int] = Field(default=None, ge=1)
+    temperature: float = Field(default=0.0, ge=0.0)
     force_status: Optional[int] = None
 
 def load_records():
@@ -173,6 +178,15 @@ def readiness_check():
             "service": "ai-metrics-api",
             "backend": MODEL_BACKEND,
             "model_server_url": MODEL_SERVER_URL,
+        }
+
+    if MODEL_BACKEND == "vllm":
+        return {
+            "status": "ready",
+            "service": "ai-metrics-api",
+            "backend": MODEL_BACKEND,
+            "vllm_base_url": VLLM_BASE_URL,
+            "vllm_model": VLLM_MODEL,
         }
 
     raise HTTPException(
@@ -215,6 +229,9 @@ def handle_infer(request: InferRequest, endpoint: str):
             "model": request.model,
             "tokens_in": request.tokens_in,
             "tokens_out": request.tokens_out,
+            "prompt": request.prompt,
+            "max_tokens": request.max_tokens,
+            "temperature": request.temperature,
             "force_status": request.force_status,
         }
 
