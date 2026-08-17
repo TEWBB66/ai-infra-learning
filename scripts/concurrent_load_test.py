@@ -28,7 +28,9 @@ def build_payload(args):
         "tokens_out": args.tokens_out,
     }
 
-    if random.random() < args.error_rate:
+    if args.force_status is not None:
+        payload["force_status"] = args.force_status
+    elif random.random() < args.error_rate:
         payload["force_status"] = random.choice([429, 500])
 
     return payload
@@ -129,6 +131,7 @@ def main():
     parser.add_argument("--timeout", type=float, default=10.0)
     parser.add_argument("--sleep", type=float, default=0.0)
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument("--force-status", type=int, choices=[200, 400, 429, 500], default=None)
     args = parser.parse_args()
 
     results = []

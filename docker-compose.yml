@@ -7,7 +7,8 @@ services:
     volumes:
       - ./data:/app/data
     environment:
-      - INFERENCE_LOG_PATH=/app/data/day02/inference.log
+      - INFERENCE_LOG_PATH=${INFERENCE_LOG_PATH:-/app/data/day02/inference.log}
+      - MAX_IN_FLIGHT_REQUESTS=${MAX_IN_FLIGHT_REQUESTS:-8}
     depends_on:
       - mock-model-server
 
@@ -17,6 +18,8 @@ services:
     command: python -m uvicorn projects.mock_model_server.main:app --host 0.0.0.0 --port 8001
     ports:
       - "8001:8001"
+    environment:
+      - MOCK_MODEL_DELAY_SCALE=${MOCK_MODEL_DELAY_SCALE:-0}
 
   prometheus:
     image: prom/prometheus
@@ -34,7 +37,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
