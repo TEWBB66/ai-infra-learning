@@ -312,3 +312,18 @@ The core value is not serving the largest model. The core value is building and 
 ```text
 request -> backend -> structured log -> metrics -> Prometheus -> Grafana -> alerts -> incidents
 ```
+## Reliability Experiments
+
+This project includes controlled reliability experiments for the inference serving path.
+
+The experiments cover:
+
+- Successful inference traffic
+- Backend logical failure traffic
+- Overload and API-side backpressure
+
+Key result:
+
+With `MAX_IN_FLIGHT_REQUESTS=2`, `MOCK_MODEL_DELAY_SCALE=1.0`, and client concurrency set to 10, the API rejected 28 out of 50 requests with HTTP 429 while completing 22 requests successfully. The Prometheus status metrics and log analyzer both captured the 200/429 split, and the final in-flight gauge returned to 0.
+
+See [docs/reliability_experiments.md](docs/reliability_experiments.md) for the full experiment setup, commands, results, and interpretation.
