@@ -1,0 +1,39 @@
+# HELP ai_inference_total_requests Total number of inference requests
+# TYPE ai_inference_total_requests gauge
+ai_inference_total_requests 750
+# HELP ai_inference_success_requests Total number of successful inference requests
+# TYPE ai_inference_success_requests gauge
+ai_inference_success_requests 750
+# HELP ai_inference_failed_requests Total number of failed inference requests
+# TYPE ai_inference_failed_requests gauge
+ai_inference_failed_requests 0
+# HELP ai_inference_error_rate Inference request error rate
+# TYPE ai_inference_error_rate gauge
+ai_inference_error_rate 0.0
+# HELP ai_inference_p95_latency_ms P95 inference latency in milliseconds
+# TYPE ai_inference_p95_latency_ms gauge
+ai_inference_p95_latency_ms 2900
+# HELP ai_inference_p99_latency_ms P99 inference latency in milliseconds
+# TYPE ai_inference_p99_latency_ms gauge
+ai_inference_p99_latency_ms 3681
+# HELP ai_inference_slow_request_count Number of slow inference requests
+# TYPE ai_inference_slow_request_count gauge
+ai_inference_slow_request_count 726
+# HELP ai_inference_current_in_flight_requests Current in-flight inference requests
+# TYPE ai_inference_current_in_flight_requests gauge
+ai_inference_current_in_flight_requests 0
+# HELP ai_inference_status_requests Number of inference requests by status code
+# TYPE ai_inference_status_requests gauge
+# HELP ai_inference_model_requests Number of inference requests by model
+# TYPE ai_inference_model_requests gauge
+ai_inference_status_requests{status="200"} 750
+ai_inference_model_requests{model="Qwen/Qwen2.5-0.5B-Instruct"} 750
+# HELP ai_inference_model_errors Number of failed inference requests by model
+# TYPE ai_inference_model_errors gauge
+ai_inference_model_errors{model="Qwen/Qwen2.5-0.5B-Instruct"} 0
+# HELP ai_inference_model_error_rate Error rate by model
+# TYPE ai_inference_model_error_rate gauge
+ai_inference_model_error_rate{model="Qwen/Qwen2.5-0.5B-Instruct"} 0.0
+# HELP ai_inference_model_p95_latency_ms P95 inference latency by model in milliseconds
+# TYPE ai_inference_model_p95_latency_ms gauge
+ai_inference_model_p95_latency_ms{model="Qwen/Qwen2.5-0.5B-Instruct"} 2900
