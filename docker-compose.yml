@@ -14,6 +14,9 @@ services:
       - VLLM_BASE_URL=${VLLM_BASE_URL:-http://host.docker.internal:8001/v1}
       - VLLM_MODEL=${VLLM_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}
       - MODEL_SERVER_TIMEOUT_SEC=${MODEL_SERVER_TIMEOUT_SEC:-30}
+      - ADMISSION_MODE=${ADMISSION_MODE:-reject}
+      - MAX_QUEUE_SIZE=${MAX_QUEUE_SIZE:-32}
+      - QUEUE_TIMEOUT_MS=${QUEUE_TIMEOUT_MS:-500}
     depends_on:
       - mock-model-server
 
