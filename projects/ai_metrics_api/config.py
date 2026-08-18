@@ -28,7 +28,7 @@ MOCK_MODEL_SERVER_URL = os.getenv(
 )
 MODEL_SERVER_URL = MOCK_MODEL_SERVER_URL
 VLLM_BASE_URL = os.getenv("VLLM_BASE_URL", "http://127.0.0.1:8001/v1").rstrip("/")
-VLLM_MODEL = os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-1.5B-Instruct")
+VLLM_MODEL = os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-0.5B-Instruct")
 MODEL_SERVER_TIMEOUT_SEC = float(
     os.getenv("MODEL_SERVER_TIMEOUT_SEC", os.getenv("MODEL_SERVER_TIMEOUT_SECONDS", "30"))
 )

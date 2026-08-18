@@ -69,7 +69,7 @@ def test_metrics_api_readiness_vllm_backend(monkeypatch):
 
     monkeypatch.setattr(main, "MODEL_BACKEND", "vllm")
     monkeypatch.setattr(main, "VLLM_BASE_URL", "http://127.0.0.1:8001/v1")
-    monkeypatch.setattr(main, "VLLM_MODEL", "Qwen/Qwen2.5-1.5B-Instruct")
+    monkeypatch.setattr(main, "VLLM_MODEL", "Qwen/Qwen2.5-0.5B-Instruct")
 
     response = client.get("/ready")
 
@@ -79,7 +79,7 @@ def test_metrics_api_readiness_vllm_backend(monkeypatch):
         "service": "ai-metrics-api",
         "backend": "vllm",
         "vllm_base_url": "http://127.0.0.1:8001/v1",
-        "vllm_model": "Qwen/Qwen2.5-1.5B-Instruct",
+        "vllm_model": "Qwen/Qwen2.5-0.5B-Instruct",
     }
 
 

@@ -68,7 +68,7 @@ class FakeVLLMResponse:
 
     def json(self):
         return {
-            "model": "Qwen/Qwen2.5-1.5B-Instruct",
+            "model": "Qwen/Qwen2.5-0.5B-Instruct",
             "usage": {
                 "prompt_tokens": 12,
                 "completion_tokens": 7,
@@ -98,7 +98,7 @@ class FakeVLLMHttpClient:
 def test_call_model_server_supports_vllm_backend(monkeypatch):
     monkeypatch.setattr(model_client, "MODEL_BACKEND", "vllm")
     monkeypatch.setattr(model_client, "VLLM_BASE_URL", "http://vllm-server:8001/v1/")
-    monkeypatch.setattr(model_client, "VLLM_MODEL", "Qwen/Qwen2.5-1.5B-Instruct")
+    monkeypatch.setattr(model_client, "VLLM_MODEL", "Qwen/Qwen2.5-0.5B-Instruct")
     monkeypatch.setattr(backend_clients.httpx, "Client", FakeVLLMHttpClient)
 
     result = model_client.call_model_server(
@@ -111,10 +111,10 @@ def test_call_model_server_supports_vllm_backend(monkeypatch):
     )
 
     assert FakeVLLMHttpClient.request_url == "http://vllm-server:8001/v1/chat/completions"
-    assert FakeVLLMHttpClient.request_json["model"] == "Qwen/Qwen2.5-1.5B-Instruct"
+    assert FakeVLLMHttpClient.request_json["model"] == "Qwen/Qwen2.5-0.5B-Instruct"
     assert FakeVLLMHttpClient.request_json["max_tokens"] == 32
     assert FakeVLLMHttpClient.request_json["temperature"] == 0
-    assert result["model"] == "Qwen/Qwen2.5-1.5B-Instruct"
+    assert result["model"] == "Qwen/Qwen2.5-0.5B-Instruct"
     assert result["status"] == 200
     assert result["latency_ms"] >= 1
     assert result["tokens_in"] == 12

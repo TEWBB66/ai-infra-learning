@@ -1,400 +1,206 @@
 # AI Metrics API
 
-A FastAPI-based observability service for simulated AI inference workloads.
+FastAPI service for LLM inference observability, backend routing, structured logs, Prometheus metrics, alerts, incidents, and API-side backpressure.
 
-This project simulates inference requests, writes structured logs, analyzes service-level and model-level metrics, and exposes JSON and Prometheus-style monitoring endpoints.
+This subproject is the runtime core of P01. It can run locally against the deterministic mock backend or route real traffic to an OpenAI-compatible vLLM backend.
 
-## Architecture
+## Current Capabilities
 
-```text
-scripts/load_test.py
-    |
-    v
-POST /v1/mock-infer
-    |
-    v
-data/day02/inference.log
-    |
-    v
-projects/log_analyzer/analyze_logs.py
-    |
-    v
-FastAPI metrics endpoints
-    |
-    +--> /metrics/logs
-    +--> /metrics/models
-    +--> /metrics/alerts
-    +--> /metrics/prometheus
-```
+- Stable inference endpoint: `POST /v1/infer`
+- Backward-compatible mock endpoint: `POST /v1/mock-infer`
+- Backend switching with `MODEL_BACKEND=mock|vllm`
+- Deterministic mock backend for local tests, failure injection, and overload experiments
+- vLLM backend client using `/v1/chat/completions`
+- Structured inference logs with request id, model, endpoint, status, latency, and token counts
+- Service-level metrics: request count, success rate, error rate, average latency, p95, p99, slow requests
+- Model-level metrics: request count, error count, status counts, p95 latency, error rate
+- Prometheus text endpoint with service, status, in-flight, and model metrics
+- API-side in-flight backpressure with HTTP 429 rejection
+- Alert and incident summary endpoints for degraded behavior
 
-## Features
-
-- mock inference endpoint
-- structured inference log generation
-- service-level metrics
-- model-level metrics
-- P95 and P99 latency
-- slow request analysis
-- error request filtering
-- warning and critical alerting
-- centralized configuration
-- automated pytest tests
-- load testing script
-- Prometheus-style metrics endpoint
-- Dockerized service startup
-
-## Project Structure
+## Runtime Architecture
 
 ```text
-projects/ai_metrics_api/
-  main.py          FastAPI application and API endpoints
-  config.py        log path, thresholds, and service configuration
-  README.md        project documentation
-
-projects/log_analyzer/
-  analyze_logs.py  log parsing and metric aggregation logic
-
-scripts/
-  load_test.py     simulated inference traffic generator
-
-tests/
-  test_api.py
-  test_log_analyzer.py
-
-data/day02/
-  inference.log    sample inference log data
+client / load test
+    -> ai-metrics-api /v1/infer
+    -> in-flight admission gate
+    -> backend client abstraction
+       -> mock-model-server /generate
+       -> vLLM /v1/chat/completions
+    -> structured inference log
+    -> metrics APIs
+    -> /metrics/prometheus
+    -> Prometheus
+    -> Grafana
 ```
 
-## Run Locally
+## Key Files
 
-```bash
-python -m uvicorn projects.ai_metrics_api.main:app --host 0.0.0.0 --port 8000
+```text
+projects/ai_metrics_api/main.py             FastAPI app, request handling, logs, metrics, alerts, incidents
+projects/ai_metrics_api/config.py           Runtime configuration and thresholds
+projects/ai_metrics_api/model_client.py     Backend client factory
+projects/ai_metrics_api/backend_clients.py  Mock and vLLM backend clients
+projects/log_analyzer/analyze_logs.py       Log parser and metrics aggregation
+scripts/concurrent_load_test.py             Concurrent load and benchmark runner
 ```
 
-## Docker
+## Backend Modes
 
-Build the Docker image:
+Default local mode:
 
-```bash
-docker build -t ai-metrics-api .
+```text
+MODEL_BACKEND=mock
+MOCK_MODEL_SERVER_URL=http://mock-model-server:8001/generate
 ```
 
-Run the service:
+Real vLLM mode:
 
-```bash
-docker run --rm -p 8000:8000 ai-metrics-api
+```text
+MODEL_BACKEND=vllm
+VLLM_BASE_URL=http://127.0.0.1:8001/v1
+VLLM_MODEL=Qwen/Qwen2.5-0.5B-Instruct
+MODEL_SERVER_TIMEOUT_SEC=60
 ```
 
-If port `8000` is already in use:
-
-```bash
-docker run --rm -p 8001:8000 ai-metrics-api
-```
-
-Then test the service:
-
-```bash
-curl -s http://127.0.0.1:8000/health | jq
-curl -s http://127.0.0.1:8000/metrics/logs | jq
-curl -s http://127.0.0.1:8000/metrics/prometheus | head -20
-```
+`mock` is used for repeatable local validation. `vllm` is used for real LLM serving tests and maps OpenAI-compatible usage fields into the same internal response shape used by logs and metrics.
 
 ## API Endpoints
 
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/health` | Health check |
-| POST | `/v1/mock-infer` | Send one inference request to the mock model server and append one log line |
-| GET | `/metrics/logs` | Summary metrics, latency percentiles, slow requests, and model-level metrics |
-| GET | `/metrics/slow` | Slow request analysis |
-| GET | `/metrics/errors` | Error request analysis |
-| GET | `/metrics/models` | Metrics grouped by model |
-| GET | `/metrics/models?model_name=qwen2.5-7b` | Metrics for one model |
-| GET | `/metrics/alerts` | Service-level and model-level alert rules |
-| GET | `/metrics/incidents` | Incident summary with possible causes and suggested actions |
-| GET | `/metrics/prometheus` | Prometheus-style text metrics |
-
-## Manual API Test
-
-```bash
-curl -s http://127.0.0.1:8000/health | jq
-curl -s http://127.0.0.1:8000/metrics/logs | jq
-curl -s http://127.0.0.1:8000/metrics/models | jq
-curl -s "http://127.0.0.1:8000/metrics/models?model_name=qwen2.5-7b" | jq
-curl -i "http://127.0.0.1:8000/metrics/models?model_name=unknown-model"
-curl -s http://127.0.0.1:8000/metrics/alerts | jq
-curl -s http://127.0.0.1:8000/metrics/incidents | jq
-curl -s http://127.0.0.1:8000/metrics/prometheus | head -20
+```text
+GET  /health
+GET  /ready
+POST /v1/infer
+POST /v1/mock-infer
+GET  /metrics/logs
+GET  /metrics/models
+GET  /metrics/slow
+GET  /metrics/errors
+GET  /metrics/alerts
+GET  /metrics/incidents
+GET  /metrics/prometheus
 ```
 
-## Incident Diagnosis
+## Request Shape
 
-The `/metrics/incidents` endpoint turns raw metrics and alerts into an operator-facing incident report.
-
-It reports:
-
-- current service status
-- incident summary
-- total request count
-- error rate
-- P95 latency
-- slow request count
-- alert count
-- possible causes
-- suggested actions
-
-Example:
-
-```bash
-curl -s http://127.0.0.1:8000/metrics/incidents | jq
+```json
+{
+  "model": "Qwen/Qwen2.5-0.5B-Instruct",
+  "tokens_in": 32,
+  "tokens_out": 32,
+  "prompt": "Say hello in one short sentence.",
+  "max_tokens": 32,
+  "temperature": 0
+}
 ```
 
-## Mock Inference
+`force_status` is supported for mock-backend failure injection and accepts `200`, `400`, `429`, or `500`.
 
-```bash
-curl -s -X POST http://127.0.0.1:8000/v1/mock-infer \
-  -H "Content-Type: application/json" \
-  -d '{"model":"qwen2.5-7b","tokens_in":300,"tokens_out":80}' | jq
+## Response Shape
+
+```json
+{
+  "request_id": "req-1234abcd",
+  "model": "Qwen/Qwen2.5-0.5B-Instruct",
+  "status": 200,
+  "latency_ms": 173,
+  "tokens_in": 36,
+  "tokens_out": 10
+}
 ```
-
-Validation examples:
-
-```bash
-curl -i -X POST http://127.0.0.1:8000/v1/mock-infer \
-  -H "Content-Type: application/json" \
-  -d '{"model":"qwen2.5-7b","tokens_in":-1,"tokens_out":0}'
-
-curl -i -X POST http://127.0.0.1:8000/v1/mock-infer \
-  -H "Content-Type: application/json" \
-  -d '{"model":"qwen2.5-7b","tokens_in":10,"tokens_out":0,"force_status":999}'
-```
-
-## Load Test
-
-Generate simulated inference traffic:
-
-```bash
-python scripts/load_test.py --count 20 --error-rate 0.1
-```
-
-Then inspect updated metrics and alerts:
-
-```bash
-curl -s http://127.0.0.1:8000/metrics/logs | jq
-curl -s http://127.0.0.1:8000/metrics/alerts | jq
-```
-
-The load test script sends multiple requests to `/v1/mock-infer`, randomly selects models and token sizes, and optionally injects simulated error responses based on `--error-rate`.
 
 ## Prometheus Metrics
 
-Expose metrics in Prometheus text format:
-
-```bash
-curl -s http://127.0.0.1:8000/metrics/prometheus
-```
-
-Example metrics:
-
-```text
-ai_inference_total_requests 20
-ai_inference_error_rate 0.2
-ai_inference_p95_latency_ms 495
-ai_inference_model_request_count{model="qwen2.5-7b"} 7
-ai_inference_model_error_rate{model="qwen2.5-7b"} 0.2857
-```
-
-## Prometheus Integration
-
-Start the API service and Prometheus together:
-
-```bash
-docker compose up --build
-```
-
-Prometheus is available at:
-
-```text
-http://127.0.0.1:9090
-```
-
-Example Prometheus queries:
+Service and admission-control metrics:
 
 ```text
 ai_inference_total_requests
+ai_inference_success_requests
+ai_inference_failed_requests
 ai_inference_error_rate
 ai_inference_p95_latency_ms
-ai_inference_model_request_count
-ai_inference_model_error_rate
+ai_inference_p99_latency_ms
+ai_inference_slow_request_count
+ai_inference_current_in_flight_requests
+ai_inference_status_requests{status="200"}
+ai_inference_status_requests{status="429"}
 ```
 
-The Prometheus scrape configuration is defined in `monitoring/prometheus.yml`. It scrapes the API service at `/metrics/prometheus` every 5 seconds.
-
-## Grafana Dashboard
-
-This project includes a minimal Grafana dashboard for visualizing AI inference service metrics.
-
-Dashboard JSON file:
+Model-level metrics:
 
 ```text
-monitoring/grafana/dashboards/ai_metrics_dashboard.json
+ai_inference_model_requests{model="..."}
+ai_inference_model_errors{model="..."}
+ai_inference_model_error_rate{model="..."}
+ai_inference_model_p95_latency_ms{model="..."}
 ```
 
-Start the API service, Prometheus, and Grafana with Docker Compose:
+## Local Validation
+
+Run the default mock stack:
 
 ```bash
 docker compose up --build
 ```
 
-Open Grafana:
-
-```text
-http://127.0.0.1:3000
-```
-
-Default Grafana login:
-
-```text
-username: admin
-password: admin
-```
-
-After logging in, add Prometheus as a data source.
-
-Prometheus data source URL:
-
-```text
-http://prometheus:9090
-```
-
-Then import the dashboard JSON from:
-
-```text
-monitoring/grafana/dashboards/ai_metrics_dashboard.json
-```
-
-The dashboard includes four basic panels:
-
-```text
-Total Requests
-Error Rate
-P95 Latency
-Slow Requests
-```
-
-These panels are based on the Prometheus metrics exposed by the API at:
-
-```text
-/metrics/prometheus
-```
-
-## Load Test and Observability Validation
-
-The project includes a simple load testing script for generating mock inference traffic and validating that metrics are reflected in the observability stack.
-
-Run a low-error-rate load test:
-
-```bash
-python scripts/load_test.py --count 10 --error-rate 0.1
-```
-
-Example result:
-
-```text
-total_requests=10
-success_count=9
-error_count=1
-avg_latency_ms=315.4
-max_latency_ms=524
-```
-
-After this test, the Grafana dashboard reflected updated metrics:
-
-```text
-Total Requests: 25
-Error Rate: 0.160
-P95 Latency: 524
-Slow Requests: 12
-```
-
-Run a high-error-rate load test:
-
-```bash
-python scripts/load_test.py --count 10 --error-rate 0.5
-```
-
-Example result:
-
-```text
-total_requests=10
-success_count=4
-error_count=6
-avg_latency_ms=319.5
-max_latency_ms=515
-```
-
-After this test, the Grafana dashboard reflected a clear service degradation:
-
-```text
-Total Requests: 35
-Error Rate: 0.286
-P95 Latency: 515
-Slow Requests: 20
-```
-
-This validates the full observability flow:
-
-```text
-load_test.py
--> mock inference API
--> inference log file
--> metrics API
--> Prometheus scrape
--> Grafana dashboard
-```
-
-The goal is to verify that the monitoring system responds to both normal traffic and degraded traffic.
-
-## Automated Test
+Run tests:
 
 ```bash
 python -m pytest -q
 ```
 
-Current test coverage includes:
+Expected result:
 
-- log analyzer summary metrics
-- health check endpoint
-- log metrics endpoint
-- model metrics endpoint
-- model filtering
-- alerting endpoint
-- Prometheus metrics endpoint
-- mock inference success path
-- mock inference validation errors
+```text
+56 passed, 1 warning
+```
 
-## Configuration
+The warning is the known FastAPI / Starlette TestClient warning.
 
-Key service settings are defined in `projects/ai_metrics_api/config.py`, including:
+## Real vLLM Validation
 
-- log file path
-- default slow request threshold
-- allowed forced status codes for mock inference
-- service-level alert thresholds
-- model-level alert thresholds
+The current implementation was validated against a real vLLM backend on August 18, 2026:
 
-## Design Notes
+```text
+Host: A5000 lab GPU server
+GPU: NVIDIA RTX A5000, GPU 0 only
+Model: Qwen/Qwen2.5-0.5B-Instruct
+vLLM: 0.11.0
+API backend: MODEL_BACKEND=vllm
+```
 
-This project separates log analysis from API serving. The log analyzer handles parsing and metric aggregation, while the FastAPI service exposes those metrics through JSON and Prometheus-style endpoints.
+Validation evidence:
 
-The alerting logic uses both service-level and model-level metrics. This makes it possible to distinguish between a global service issue and a model-specific reliability or latency problem.
+- `/ready` reported `backend=vllm`
+- `/v1/infer` successfully routed to vLLM
+- vLLM token usage was captured as `tokens_in` and `tokens_out`
+- real-backend backpressure returned 28 HTTP 429 responses out of 30 requests when `MAX_IN_FLIGHT_REQUESTS=2`
+- benchmark matrix completed 750/750 successful requests
+- Prometheus metrics captured status, model, and in-flight metrics
 
-Docker support improves environment consistency and makes the service easier to run on another machine or server.
+Full report:
 
-## Roadmap
+```text
+reports/vllm_benchmark_2026_08_18/README.md
+```
 
-- add architecture diagram
-- add Prometheus scrape config
-- add Grafana dashboard
-- connect to a real model serving backend such as vLLM or Triton
-- add performance comparison under different traffic patterns
+## Project Boundary
+
+This service is a single-instance learning prototype. It demonstrates the serving reliability layer around LLM inference, not a production distributed serving platform.
+
+Known limits are documented in:
+
+```text
+docs/PRODUCTION_GAPS.md
+```
+
+Important current limits:
+
+- no authentication
+- no distributed global rate limit
+- no durable log backend
+- no distributed tracing
+- no GPU scheduler
+- no autoscaling
+- no production deployment manifests
+```
