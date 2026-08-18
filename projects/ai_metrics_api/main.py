@@ -32,6 +32,7 @@ from projects.ai_metrics_api.config import (
     SERVICE_SLOW_REQUEST_CRITICAL_COUNT,
     SERVICE_SLOW_REQUEST_WARNING_COUNT,
 )
+from projects.ai_metrics_api.prometheus_histogram import build_latency_histogram_prometheus
 
 app = FastAPI()
 
@@ -504,4 +505,5 @@ def get_prometheus_metrics():
             f'ai_inference_model_p95_latency_ms{{model="{model_label}"}} {model_metrics["p95_latency_ms"]}'
         )
 
+    lines.extend(build_latency_histogram_prometheus(LOG_PATH))
     return "\n".join(lines) + "\n"
