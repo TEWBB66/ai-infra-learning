@@ -1,47 +1,58 @@
 # AI Inference Observability and Reliability Platform
 
-A learning-oriented AI infrastructure project for observing and diagnosing AI inference traffic.
+A learning-oriented AI infrastructure project for observing, benchmarking, and hardening LLM inference traffic.
 
-This project builds a small but end-to-end inference observability system with FastAPI, Docker Compose, Prometheus, Grafana, structured inference logs, model-level metrics, backend failure handling, and real GPU backend validation.
+This project builds an end-to-end single-GPU LLM serving reliability layer with FastAPI, vLLM, Prometheus, Grafana, structured inference logs, model-level metrics, mock failure injection, API-side backpressure, and real Qwen2.5 GPU benchmark evidence.
 
-It is not a production-scale serving platform. It is designed to practice the engineering workflow behind AI model serving, observability, and reliability.
+It is not a production-scale distributed serving platform. It is designed to practice the engineering workflow behind LLM serving, observability, overload control, and reliability validation.
 
 ## What This Project Demonstrates
 
-- Accept inference requests through a FastAPI metrics API
-- Route requests to either a mock backend or a remote HTTP model backend
-- Record structured inference logs
+- Accept inference requests through a stable FastAPI `/v1/infer` endpoint
+- Switch model backends with `MODEL_BACKEND=mock|vllm`
+- Keep a deterministic mock backend for reproducible failure injection and overload tests
+- Route real requests to a vLLM OpenAI-compatible backend
+- Normalize mock and vLLM responses into the same internal metrics shape
+- Record structured inference logs for successful, failed, and rejected requests
 - Calculate request count, success rate, error rate, latency percentiles, slow requests, alerts, and incident signals
-- Expose Prometheus-compatible service-level and model-level metrics
+- Expose Prometheus-compatible service-level, status-level, in-flight, and model-level metrics
 - Visualize metrics in Grafana
-- Validate the same observability pipeline against a real GPU-backed Qwen model server
-- Capture backend failures as logs, metrics, and incident signals
-- Separate liveness and readiness checks for deployable services
+- Apply API-side in-flight backpressure with HTTP 429 rejection
+- Validate real Qwen2.5 serving on an NVIDIA RTX A5000 through vLLM
+- Run a real GPU benchmark matrix across concurrency and output length
+- Validate backpressure in front of a real vLLM backend, not only a mock backend
 
 ## System Components
 
 The Docker Compose stack includes:
 
-- `ai-metrics-api`: FastAPI service for inference requests, logs, metrics, alerts, incidents, readiness, and Prometheus metrics
+- `ai-metrics-api`: FastAPI service for inference requests, backend routing, logs, metrics, alerts, incidents, readiness, and Prometheus metrics
 - `mock-model-server`: mock backend model service used for reproducible local validation
 - `prometheus`: scrapes metrics from `ai-metrics-api`
 - `grafana`: loads the provisioned Prometheus datasource and AI metrics dashboard
 
 The repository also includes:
 
-- `projects/gpu_model_server`: GPU model server with `template` and `transformers` runtime modes
-- `docs`: validation, setup, protocol, and production-gap documentation
-- `reports`: GPU backend validation report
+- `projects/ai_metrics_api/backend_clients.py`: backend client abstraction for mock and vLLM backends
+- `projects/gpu_model_server`: earlier GPU model server with `template` and `transformers` runtime modes
+- `scripts/concurrent_load_test.py`: concurrent load and serving benchmark script
+- `docs`: validation, setup, protocol, reliability, and production-gap documentation
+- `reports`: real GPU validation and vLLM benchmark reports
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    Client["Client / curl / load test"] --> API["ai-metrics-api"]
+    Client["Client / curl / load test"] --> API["ai-metrics-api /v1/infer"]
 
-    API --> Backend["Model backend"]
-    Backend --> Mock["mock-model-server"]
-    Backend --> GPU["remote_http GPU model server"]
+    API --> Gate["in-flight gate"]
+    Gate --> BackendClient["backend client abstraction"]
+
+    BackendClient --> Mock["mock-model-server /generate"]
+    BackendClient --> VLLM["vLLM OpenAI API /v1/chat/completions"]
+    BackendClient --> LegacyGPU["legacy remote_http GPU server"]
+
+    VLLM --> Qwen["Qwen2.5 on RTX A5000"]
 
     API --> Logs["structured inference log"]
     Logs --> Metrics["metrics APIs"]
@@ -56,17 +67,19 @@ flowchart LR
 
 Main request flow:
 
-1. A client sends an inference request to `ai-metrics-api`.
-2. The API routes the request to the configured model backend.
-3. The API records a structured inference log entry.
-4. Metrics endpoints calculate latency, error rate, slow requests, and model-level metrics.
-5. Prometheus scrapes `/metrics/prometheus`.
-6. Grafana visualizes service-level and model-level observability.
-7. Alert and incident endpoints summarize abnormal behavior.
+1. A client sends an inference request to `/v1/infer`.
+2. The API checks the in-flight gate.
+3. Accepted requests are routed to the configured backend.
+4. Rejected overload requests return HTTP 429 and are logged.
+5. Backend responses are normalized into `model`, `status`, `latency_ms`, `tokens_in`, and `tokens_out`.
+6. The API records a structured inference log entry.
+7. Metrics endpoints calculate latency, error rate, status counts, and model-level metrics.
+8. Prometheus scrapes `/metrics/prometheus`.
+9. Grafana visualizes service-level and model-level observability.
 
 ## Quickstart
 
-Start the full local stack:
+Start the full local mock stack:
 
 ```bash
 cd /workspaces/ai-infra-learning
@@ -96,7 +109,7 @@ Expected result:
 
 The warning comes from FastAPI / Starlette TestClient and does not indicate a project failure.
 
-For the full validation workflow, see:
+For the full local validation workflow, see:
 
 ```text
 docs/LOCAL_VALIDATION.md
@@ -127,7 +140,15 @@ GET  /health
 POST /generate
 ```
 
-GPU model server:
+vLLM backend:
+
+```text
+GET  /v1/models
+POST /v1/chat/completions
+GET  /metrics
+```
+
+Earlier GPU model server:
 
 ```text
 GET  /health
@@ -137,27 +158,29 @@ POST /generate
 
 ## Backend Modes
 
-The metrics API supports two backend modes:
+The metrics API supports backend switching:
 
 ```text
 MODEL_BACKEND=mock
-MODEL_BACKEND=remote_http
+MODEL_BACKEND=vllm
 ```
 
-`mock` is the default backend for local development and repeatable validation.
+`mock` is the default backend for local development, repeatable validation, failure injection, and overload experiments.
 
-`remote_http` allows the same observability pipeline to call a separate model server, including a GPU-backed server.
+`vllm` calls an OpenAI-compatible vLLM server through `/v1/chat/completions` and maps vLLM usage into the internal response shape used by structured logs and metrics.
 
-The GPU model server supports two runtime modes:
+Runtime variables:
 
 ```text
-GPU_MODEL_MODE=template
-GPU_MODEL_MODE=transformers
+MODEL_BACKEND=mock|vllm
+MOCK_MODEL_SERVER_URL=http://mock-model-server:8001/generate
+VLLM_BASE_URL=http://127.0.0.1:8001/v1
+VLLM_MODEL=Qwen/Qwen2.5-0.5B-Instruct
+MODEL_SERVER_TIMEOUT_SEC=60
+MAX_IN_FLIGHT_REQUESTS=8
 ```
 
-`template` mode returns protocol-compatible responses with estimated latency.
-
-`transformers` mode runs a Hugging Face Transformers model and returns the same response protocol.
+The older `remote_http` and `projects/gpu_model_server` path remains documented as an earlier GPU validation path, but the current LLM serving benchmark uses vLLM.
 
 Backend protocol details:
 
@@ -165,7 +188,7 @@ Backend protocol details:
 docs/MODEL_BACKEND_PROTOCOL.md
 ```
 
-GPU server setup:
+GPU server setup and earlier Transformers validation path:
 
 ```text
 docs/GPU_SERVER_SETUP.md
@@ -174,7 +197,7 @@ projects/gpu_model_server/README.md
 
 ## Observability Features
 
-The project exposes both service-level and model-level metrics.
+The project exposes service-level, status-level, in-flight, and model-level metrics.
 
 Service-level examples:
 
@@ -186,6 +209,8 @@ ai_inference_error_rate
 ai_inference_p95_latency_ms
 ai_inference_p99_latency_ms
 ai_inference_slow_request_count
+ai_inference_current_in_flight_requests
+ai_inference_status_requests{status="..."}
 ```
 
 Model-level examples:
@@ -195,6 +220,15 @@ ai_inference_model_requests{model="..."}
 ai_inference_model_errors{model="..."}
 ai_inference_model_error_rate{model="..."}
 ai_inference_model_p95_latency_ms{model="..."}
+```
+
+vLLM metrics captured during the GPU benchmark include:
+
+```text
+vllm:num_requests_running
+vllm:num_requests_waiting
+vllm:prompt_tokens_total
+vllm:generation_tokens_total
 ```
 
 Grafana dashboard panels include:
@@ -215,38 +249,65 @@ The project includes reliability-focused behavior:
 - Backend unavailable errors become structured `502` responses
 - Backend timeouts become structured `504` responses
 - Invalid backend responses become structured `502` responses
-- Transformers dependency failures return structured errors
-- Transformers model loading failures return structured errors
-- Transformers generation failures return structured errors
+- vLLM backend responses are normalized into the same log and metrics shape as mock responses
+- API-side in-flight backpressure rejects overload with HTTP 429
+- Rejected requests are logged and counted in Prometheus status metrics
+- The in-flight gauge returns to 0 after successful, failed, and rejected paths
 - `ai-metrics-api` exposes `/health` and `/ready`
-- `gpu-model-server` exposes `/health` and `/ready`
 
-This makes user-visible failures observable through logs, metrics, and incident signals.
+This makes user-visible failures and overload behavior observable through logs, metrics, and incident signals.
 
-## GPU Backend Validation
+## Real vLLM GPU Serving Validation
 
-The project was validated against a real GPU-backed model server using:
+The project was validated against a real vLLM backend using:
 
 ```text
-NVIDIA RTX A5000
-Qwen/Qwen2.5-0.5B-Instruct
-GPU_MODEL_MODE=transformers
+Host: A5000 lab GPU server
+GPU: NVIDIA RTX A5000, GPU 0 only
+Model: Qwen/Qwen2.5-0.5B-Instruct
+vLLM: 0.11.0
 CUDA_VISIBLE_DEVICES=0
 ```
 
-The GPU validation covered:
+Validation completed on August 18, 2026:
 
-- Successful remote HTTP inference through the metrics API
-- Backend failure retest
-- 10-request stability sample
-- Small-token vs large-token latency comparison
-- Final GPU smoke test with `/health`, `/ready`, and `/generate`
+- vLLM `/v1/models` smoke test succeeded
+- vLLM `/v1/chat/completions` smoke test succeeded
+- P01 `/v1/infer` routed through real vLLM successfully
+- Small real-vLLM load sample completed with 10/10 HTTP 200
+- Real-backend backpressure test completed with 28 HTTP 429 responses out of 30 requests when `MAX_IN_FLIGHT_REQUESTS=2`
+- Full benchmark matrix completed with 750/750 successful requests
+
+Benchmark matrix:
+
+```text
+concurrency: 1, 2, 4, 8, 16
+max_tokens: 32, 128, 512
+requests per case: 50
+```
+
+Aggregate matrix result:
+
+```text
+total_requests: 750
+success_requests: 750
+failed_requests: 0
+error_rate: 0.0
+vllm:prompt_tokens_total: 48600
+vllm:generation_tokens_total: 165754
+GPU 0 memory after matrix: about 12485 MiB / 24564 MiB
+```
 
 Full report:
 
 ```text
-reports/gpu_backend_observability_report.md
 reports/vllm_benchmark_2026_08_18/README.md
+```
+
+Earlier Transformers GPU backend validation report:
+
+```text
+reports/gpu_backend_observability_report.md
 ```
 
 ## Local Validation
@@ -258,6 +319,10 @@ Final local validation covered:
 - API health and readiness
 - Mock model server health
 - Deterministic inference request
+- Concurrent load test
+- Mock backend failure injection
+- Mock backend delay and overload
+- API-side backpressure
 - Log metrics
 - Prometheus metrics
 - Prometheus target health
@@ -277,8 +342,8 @@ Grafana API validation should use the admin password configured in `docker-compo
 This project intentionally focuses on learning and core observability workflow. It does not yet include production-grade controls such as:
 
 - Authentication and authorization
-- Rate limiting
-- Distributed request queueing and global backpressure
+- Distributed rate limiting
+- Distributed global backpressure across API replicas
 - Durable log storage
 - Long-term metrics retention
 - Distributed tracing
@@ -301,6 +366,7 @@ docs/LOCAL_VALIDATION.md
 docs/MODEL_BACKEND_PROTOCOL.md
 docs/GPU_SERVER_SETUP.md
 docs/PRODUCTION_GAPS.md
+docs/reliability_experiments.md
 projects/gpu_model_server/README.md
 reports/gpu_backend_observability_report.md
 reports/vllm_benchmark_2026_08_18/README.md
@@ -310,40 +376,10 @@ reports/vllm_benchmark_2026_08_18/README.md
 
 This repository is a learning project, not a production service.
 
-The core value is not serving the largest model. The core value is building and validating the operational path around AI inference:
+The current system is best described as a single-GPU LLM serving reliability layer. It validates the operational path around inference serving:
 
 ```text
-request -> backend -> structured log -> metrics -> Prometheus -> Grafana -> alerts -> incidents
+request -> admission control -> backend -> structured log -> metrics -> Prometheus -> Grafana -> alerts -> incidents
 ```
-## Reliability Experiments
 
-This project includes controlled reliability experiments for the inference serving path.
-
-The experiments cover:
-
-- Successful inference traffic
-- Backend logical failure traffic
-- Overload and API-side backpressure
-
-Key result:
-
-With `MAX_IN_FLIGHT_REQUESTS=2`, `MOCK_MODEL_DELAY_SCALE=1.0`, and client concurrency set to 10, the API rejected 28 out of 50 requests with HTTP 429 while completing 22 requests successfully. The Prometheus status metrics and log analyzer both captured the 200/429 split, and the final in-flight gauge returned to 0.
-
-See [docs/reliability_experiments.md](docs/reliability_experiments.md) for the full experiment setup, commands, results, and interpretation.
-
-## Real vLLM Benchmark and Backpressure Result
-
-The project now includes real vLLM serving validation on a lab NVIDIA RTX A5000.
-
-Key results:
-
-- Qwen/Qwen2.5-0.5B-Instruct served through vLLM 0.11.0
-- `/v1/infer` routed to vLLM through `MODEL_BACKEND=vllm`
-- Small load sample: 10/10 HTTP 200
-- Real backend backpressure: 28 HTTP 429 responses out of 30 requests with `MAX_IN_FLIGHT_REQUESTS=2`
-- Full benchmark matrix: 750/750 successful requests across concurrency 1/2/4/8/16 and max_tokens 32/128/512
-- Final in-flight gauge returned to 0
-- vLLM metrics captured prompt and generation token totals
-- GPU 0 only was used; GPU 1/2/3 remained unused by vLLM
-
-See [reports/vllm_benchmark_2026_08_18/README.md](reports/vllm_benchmark_2026_08_18/README.md).
+Current limits are intentional and documented: single GPU, single API instance, in-memory gate, local file logs, no distributed global rate limit, and no custom batching layer because vLLM owns the serving engine.
