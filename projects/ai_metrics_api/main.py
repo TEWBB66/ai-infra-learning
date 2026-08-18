@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from threading import Lock
+from threading import Condition, Lock
 from typing import Optional
 from uuid import uuid4
 import time
@@ -17,6 +17,9 @@ from projects.ai_metrics_api.config import (
     DEFAULT_SLOW_THRESHOLD_MS,
     LOG_PATH,
     MAX_IN_FLIGHT_REQUESTS,
+    QUEUE_TIMEOUT_MS,
+    MAX_QUEUE_SIZE,
+    ADMISSION_MODE,
     MODEL_BACKEND,
     MODEL_SERVER_URL,
     VLLM_BASE_URL,
@@ -37,26 +40,87 @@ from projects.ai_metrics_api.prometheus_histogram import build_latency_histogram
 app = FastAPI()
 
 class InferenceGate:
-    def __init__(self, max_in_flight: int):
+    def __init__(
+        self,
+        max_in_flight: int,
+        admission_mode: str = "reject",
+        max_queue_size: int = 0,
+        queue_timeout_ms: int = 0,
+    ):
         self.max_in_flight = max_in_flight
+        self.admission_mode = admission_mode
+        self.max_queue_size = max_queue_size
+        self.queue_timeout_ms = queue_timeout_ms
         self.current_in_flight = 0
-        self._lock = Lock()
+        self.current_queued = 0
+        self.queue_rejected_total = 0
+        self.queue_timeout_total = 0
+        self._condition = Condition(Lock())
 
     def try_acquire(self) -> bool:
-        with self._lock:
+        if self.admission_mode == "queue":
+            return self._try_acquire_with_queue()
+        return self._try_acquire_reject()
+
+    def _try_acquire_reject(self) -> bool:
+        with self._condition:
             if self.current_in_flight >= self.max_in_flight:
                 return False
 
             self.current_in_flight += 1
             return True
 
+    def _try_acquire_with_queue(self) -> bool:
+        deadline = time.perf_counter() + (self.queue_timeout_ms / 1000)
+
+        with self._condition:
+            if self.current_in_flight < self.max_in_flight:
+                self.current_in_flight += 1
+                return True
+
+            if self.current_queued >= self.max_queue_size:
+                self.queue_rejected_total += 1
+                return False
+
+            self.current_queued += 1
+            try:
+                while self.current_in_flight >= self.max_in_flight:
+                    remaining_seconds = deadline - time.perf_counter()
+                    if remaining_seconds <= 0:
+                        self.queue_timeout_total += 1
+                        return False
+                    self._condition.wait(timeout=remaining_seconds)
+
+                self.current_in_flight += 1
+                return True
+            finally:
+                self.current_queued -= 1
+
     def release(self) -> None:
-        with self._lock:
+        with self._condition:
             if self.current_in_flight > 0:
                 self.current_in_flight -= 1
+            self._condition.notify()
+
+    def snapshot(self) -> dict:
+        with self._condition:
+            return {
+                "admission_mode": self.admission_mode,
+                "max_in_flight": self.max_in_flight,
+                "current_in_flight": self.current_in_flight,
+                "max_queue_size": self.max_queue_size,
+                "current_queued": self.current_queued,
+                "queue_rejected_total": self.queue_rejected_total,
+                "queue_timeout_total": self.queue_timeout_total,
+            }
 
 
-INFERENCE_GATE = InferenceGate(MAX_IN_FLIGHT_REQUESTS)
+INFERENCE_GATE = InferenceGate(
+    MAX_IN_FLIGHT_REQUESTS,
+    admission_mode=ADMISSION_MODE,
+    max_queue_size=MAX_QUEUE_SIZE,
+    queue_timeout_ms=QUEUE_TIMEOUT_MS,
+)
 
 def format_log_line(
     request_id: str,
@@ -419,9 +483,26 @@ def _escape_prometheus_label(value: str) -> str:
     return str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
 
+def _snapshot_inference_gate(gate) -> dict:
+    if hasattr(gate, "snapshot"):
+        return gate.snapshot()
+
+    return {
+        "admission_mode": "reject",
+        "max_in_flight": getattr(gate, "max_in_flight", 0),
+        "current_in_flight": getattr(gate, "current_in_flight", 0),
+        "max_queue_size": 0,
+        "current_queued": 0,
+        "queue_rejected_total": 0,
+        "queue_timeout_total": 0,
+    }
+
+
 @app.get("/metrics/prometheus", response_class=PlainTextResponse)
 def get_prometheus_metrics():
     metrics = analyze_logs(LOG_PATH)
+    gate_metrics = _snapshot_inference_gate(INFERENCE_GATE)
+    admission_mode_label = _escape_prometheus_label(gate_metrics["admission_mode"])
 
     lines = [
         "# HELP ai_inference_total_requests Total number of inference requests",
@@ -447,7 +528,19 @@ def get_prometheus_metrics():
         f"ai_inference_slow_request_count {metrics['slow_request_count']}",
         "# HELP ai_inference_current_in_flight_requests Current in-flight inference requests",
         "# TYPE ai_inference_current_in_flight_requests gauge",
-        f"ai_inference_current_in_flight_requests {INFERENCE_GATE.current_in_flight}",
+        f"ai_inference_current_in_flight_requests {gate_metrics['current_in_flight']}",
+        "# HELP ai_inference_queue_depth Current queued inference requests",
+        "# TYPE ai_inference_queue_depth gauge",
+        f"ai_inference_queue_depth {gate_metrics['current_queued']}",
+        "# HELP ai_inference_queue_rejected_total Total inference requests rejected because the queue was full",
+        "# TYPE ai_inference_queue_rejected_total counter",
+        f"ai_inference_queue_rejected_total {gate_metrics['queue_rejected_total']}",
+        "# HELP ai_inference_queue_timeout_total Total inference requests rejected after queue timeout",
+        "# TYPE ai_inference_queue_timeout_total counter",
+        f"ai_inference_queue_timeout_total {gate_metrics['queue_timeout_total']}",
+        "# HELP ai_inference_admission_mode Active inference admission mode",
+        "# TYPE ai_inference_admission_mode gauge",
+        f'ai_inference_admission_mode{{mode="{admission_mode_label}"}} 1',
         "# HELP ai_inference_status_requests Number of inference requests by status code",
         "# TYPE ai_inference_status_requests gauge",
         "# HELP ai_inference_model_requests Number of inference requests by model",
