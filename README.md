@@ -383,3 +383,7 @@ request -> admission control -> backend -> structured log -> metrics -> Promethe
 ```
 
 Current limits are intentional and documented: single GPU, single API instance, in-memory gate, local file logs, no distributed global rate limit, and no custom batching layer because vLLM owns the serving engine.
+
+## Operations
+
+- [Alerting runbook](docs/ALERTING_RUNBOOK.md)

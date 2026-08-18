@@ -1,0 +1,62 @@
+groups:
+  - name: ai_metrics_api_inference
+    rules:
+      - alert: AIInferenceHighP95Latency
+        expr: histogram_quantile(0.95, sum by (le) (ai_inference_latency_ms_bucket)) > 800
+        for: 2m
+        labels:
+          severity: warning
+          service: ai-metrics-api
+        annotations:
+          summary: "Inference p95 latency is above 800 ms"
+          description: "The observed p95 latency from inference logs is above the warning threshold."
+
+      - alert: AIInferenceHighErrorRate
+        expr: sum(ai_inference_status_requests{status!~"2.."}) / clamp_min(sum(ai_inference_status_requests), 1) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          service: ai-metrics-api
+        annotations:
+          summary: "Inference error rate is above 5 percent"
+          description: "More than 5 percent of recorded inference requests are non-2xx."
+
+      - alert: AIInferenceInFlightSaturation
+        expr: ai_inference_current_in_flight_requests >= 8
+        for: 1m
+        labels:
+          severity: warning
+          service: ai-metrics-api
+        annotations:
+          summary: "Inference in-flight gate is saturated"
+          description: "Current in-flight inference requests reached the configured gate limit."
+
+      - alert: AIInferenceQueueBacklog
+        expr: ai_inference_queue_depth > 0
+        for: 2m
+        labels:
+          severity: warning
+          service: ai-metrics-api
+        annotations:
+          summary: "Inference admission queue has backlog"
+          description: "Queued inference requests indicate sustained pressure beyond immediate capacity."
+
+      - alert: AIInferenceQueueTimeouts
+        expr: increase(ai_inference_queue_timeout_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: ai-metrics-api
+        annotations:
+          summary: "Inference admission queue timed out requests"
+          description: "Requests waited in the admission queue and timed out before getting capacity."
+
+      - alert: AIInferenceQueueRejections
+        expr: increase(ai_inference_queue_rejected_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: ai-metrics-api
+        annotations:
+          summary: "Inference admission queue rejected requests"
+          description: "The queue was full and rejected requests before they reached the model backend."
