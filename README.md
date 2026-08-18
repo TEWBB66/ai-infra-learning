@@ -91,7 +91,7 @@ python -m pytest -q
 Expected result:
 
 ```text
-39 passed, 1 warning
+56 passed, 1 warning
 ```
 
 The warning comes from FastAPI / Starlette TestClient and does not indicate a project failure.
@@ -109,6 +109,7 @@ AI metrics API:
 ```text
 GET  /health
 GET  /ready
+POST /v1/infer
 POST /v1/mock-infer
 GET  /metrics/logs
 GET  /metrics/models
@@ -245,6 +246,7 @@ Full report:
 
 ```text
 reports/gpu_backend_observability_report.md
+reports/vllm_benchmark_2026_08_18/README.md
 ```
 
 ## Local Validation
@@ -276,7 +278,7 @@ This project intentionally focuses on learning and core observability workflow. 
 
 - Authentication and authorization
 - Rate limiting
-- Request queueing and backpressure
+- Distributed request queueing and global backpressure
 - Durable log storage
 - Long-term metrics retention
 - Distributed tracing
@@ -301,6 +303,7 @@ docs/GPU_SERVER_SETUP.md
 docs/PRODUCTION_GAPS.md
 projects/gpu_model_server/README.md
 reports/gpu_backend_observability_report.md
+reports/vllm_benchmark_2026_08_18/README.md
 ```
 
 ## Project Boundary
@@ -327,3 +330,20 @@ Key result:
 With `MAX_IN_FLIGHT_REQUESTS=2`, `MOCK_MODEL_DELAY_SCALE=1.0`, and client concurrency set to 10, the API rejected 28 out of 50 requests with HTTP 429 while completing 22 requests successfully. The Prometheus status metrics and log analyzer both captured the 200/429 split, and the final in-flight gauge returned to 0.
 
 See [docs/reliability_experiments.md](docs/reliability_experiments.md) for the full experiment setup, commands, results, and interpretation.
+
+## Real vLLM Benchmark and Backpressure Result
+
+The project now includes real vLLM serving validation on a lab NVIDIA RTX A5000.
+
+Key results:
+
+- Qwen/Qwen2.5-0.5B-Instruct served through vLLM 0.11.0
+- `/v1/infer` routed to vLLM through `MODEL_BACKEND=vllm`
+- Small load sample: 10/10 HTTP 200
+- Real backend backpressure: 28 HTTP 429 responses out of 30 requests with `MAX_IN_FLIGHT_REQUESTS=2`
+- Full benchmark matrix: 750/750 successful requests across concurrency 1/2/4/8/16 and max_tokens 32/128/512
+- Final in-flight gauge returned to 0
+- vLLM metrics captured prompt and generation token totals
+- GPU 0 only was used; GPU 1/2/3 remained unused by vLLM
+
+See [reports/vllm_benchmark_2026_08_18/README.md](reports/vllm_benchmark_2026_08_18/README.md).

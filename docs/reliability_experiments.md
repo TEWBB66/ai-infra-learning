@@ -138,3 +138,86 @@ This experiment set is not intended to claim production-scale performance. Its v
 - Overload traffic validates API-side backpressure and slot release behavior.
 
 The current backpressure implementation is single-instance and in-memory. In a multi-replica deployment, the next step would be to combine per-instance gates with load balancing, autoscaling metrics, and possibly distributed rate limiting depending on the serving architecture.
+
+## Real vLLM Backend Reliability Experiments
+
+After the mock reliability experiments, the same API reliability layer was tested in front of a real vLLM backend.
+
+Environment:
+
+- Date: 2026-08-18
+- Host: A5000 lab GPU server
+- GPU used: NVIDIA RTX A5000, GPU 0 only
+- Model: Qwen/Qwen2.5-0.5B-Instruct
+- vLLM: 0.11.0
+- API backend: `MODEL_BACKEND=vllm`
+- vLLM base URL: `http://127.0.0.1:8001/v1`
+
+### Real vLLM Smoke Test
+
+Validated behavior:
+
+- vLLM `/v1/models` returned the served model
+- vLLM `/v1/chat/completions` generated a response
+- P01 `/v1/infer` routed through vLLM
+- Structured logs captured vLLM latency and token counts
+- Prometheus metrics captured status and model request counts
+
+### Real vLLM Small Load Sample
+
+Load result:
+
+- Total requests: 10
+- HTTP 200: 10
+- Logical 200: 10
+- Rejected 429: 0
+- Average client latency: 176.97 ms
+- P95 client latency: 215.78 ms
+- Throughput: 11.265 requests/sec
+- Output tokens/sec: 112.648
+
+### Real vLLM Backpressure
+
+The API was restarted with `MAX_IN_FLIGHT_REQUESTS=2` and `MODEL_BACKEND=vllm`.
+
+Load result:
+
+- Total requests: 30
+- HTTP 200: 2
+- HTTP 429: 28
+- Logical 200: 2
+- Logical 429: 28
+- Rejected 429: 28
+- Final in-flight gauge: `ai_inference_current_in_flight_requests 0`
+
+Conclusion:
+
+The same single-instance in-flight gate that worked against the mock backend also protected a real vLLM backend. Excess requests were rejected quickly with HTTP 429 instead of being forwarded unboundedly to the model server.
+
+### Real vLLM Benchmark Matrix
+
+Matrix:
+
+- Concurrency: 1, 2, 4, 8, 16
+- Max tokens: 32, 128, 512
+- Requests per case: 50
+- Total benchmark requests: 750
+
+Aggregate result:
+
+- Successful requests: 750
+- Failed requests: 0
+- Error rate: 0.0
+- Final in-flight gauge: 0
+- vLLM running requests after matrix: 0
+- vLLM waiting requests after matrix: 0
+- vLLM prompt tokens total: 48600
+- vLLM generation tokens total: 165754
+- GPU 0 memory after matrix: about 12485 MiB / 24564 MiB
+- GPU 1/2/3 were not used by vLLM
+
+Full benchmark report:
+
+`reports/vllm_benchmark_2026_08_18/README.md`
+
+This does not make the system production-grade or distributed. The honest claim is narrower and stronger: this is a single-node, single-GPU LLM serving reliability prototype with real vLLM benchmark evidence.

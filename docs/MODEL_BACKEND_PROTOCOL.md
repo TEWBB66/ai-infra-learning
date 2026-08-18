@@ -174,3 +174,32 @@ The observability system should only depend on this protocol:
 ```text
 HTTP request -> model backend -> standardized response -> inference log -> metrics -> alerts -> incidents
 ```
+
+## vLLM Backend
+
+The API also supports a real vLLM backend through the OpenAI-compatible API.
+
+Configuration:
+
+- `MODEL_BACKEND=vllm`
+- `VLLM_BASE_URL=http://127.0.0.1:8001/v1`
+- `VLLM_MODEL=Qwen/Qwen2.5-0.5B-Instruct`
+- `MODEL_SERVER_TIMEOUT_SEC=60`
+
+The API sends requests to `POST /v1/chat/completions`.
+
+The vLLM response is mapped into the same internal response shape used by the mock backend:
+
+- `model`
+- `status`
+- `latency_ms`
+- `tokens_in`
+- `tokens_out`
+
+`tokens_in` and `tokens_out` are read from vLLM usage fields when available.
+
+Real vLLM validation was completed on 2026-08-18 using Qwen/Qwen2.5-0.5B-Instruct on a single NVIDIA RTX A5000. The benchmark matrix completed 750/750 successful requests.
+
+Full benchmark report:
+
+`reports/vllm_benchmark_2026_08_18/README.md`

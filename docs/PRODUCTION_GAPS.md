@@ -36,15 +36,18 @@ Production expectation:
 Current state:
 
 - Requests are handled synchronously.
-- If the backend is slow, callers wait for the backend response.
-- There is no queue, retry policy, or backpressure control.
+- The API includes a single-instance in-memory in-flight gate.
+- Overload can be rejected with HTTP 429 when `MAX_IN_FLIGHT_REQUESTS` is reached.
+- The in-flight gate was validated against both the mock backend and a real vLLM backend.
+- There is no durable request queue, retry policy, or distributed global rate limit.
 
 Production expectation:
 
-- Introduce a request queue for GPU-bound workloads.
-- Add concurrency limits per backend.
-- Add backpressure when the model server is saturated.
-- Track queue latency separately from inference latency.
+- Introduce a request queue for GPU-bound workloads when queueing is preferable to fast rejection.
+- Track queue latency separately from model generation latency.
+- Coordinate limits across multiple API replicas.
+- Add per-client, per-model, or priority-aware admission control.
+- Use autoscaling and scheduler signals from GPU utilization, queue depth, and vLLM metrics.
 
 ## Persistent Log Storage
 
@@ -149,6 +152,7 @@ Current state:
 
 - Local development uses Docker Compose.
 - GPU experiments run manually on a remote lab GPU server.
+- Real vLLM serving was validated on a single RTX A5000 GPU, but not deployed as a managed production service.
 
 Production expectation:
 
