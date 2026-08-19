@@ -125,3 +125,17 @@ def test_public_docs_describe_current_deployment_boundary():
         "external durable storage",
     ]:
         assert snippet in gaps
+
+
+
+def test_readme_production_gaps_summary_matches_current_boundary():
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    for snippet in [
+        "example Kubernetes manifests",
+        "Docker image build CI",
+        "A published image registry release",
+        "Live Kubernetes cluster deployment evidence",
+        "ServiceMonitor or managed Prometheus integration",
+    ]:
+        assert snippet in readme
