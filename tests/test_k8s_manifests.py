@@ -157,7 +157,8 @@ def test_k8s_defaults_match_documented_single_replica_boundary():
     assert "replicas: 2" not in deployment
     assert "one API replica by default" in readme
     assert "single API replica" in production_gaps
-    assert "not been applied to a live cluster" in production_gaps
+    assert "smoke-tested in minikube with a mock backend" in production_gaps
+    assert "Production Kubernetes cluster deployment evidence is not included." in production_gaps
     assert "No image registry release workflow is included yet." in production_gaps
 
 

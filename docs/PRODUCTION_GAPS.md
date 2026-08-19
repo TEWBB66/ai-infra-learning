@@ -162,8 +162,9 @@ Current state:
 - The API container has liveness and readiness checks.
 - Kubernetes example manifests include ConfigMap, Secret template, PVC, Deployment, and Service resources.
 - The Kubernetes Deployment defaults to a single API replica because SQLite logs and admission/rate-limit state are process-local.
-- The Kubernetes manifests have not been applied to a live cluster as repository evidence.
+- The Kubernetes manifests have been smoke-tested in minikube with a mock backend.
 - No image registry release workflow is included yet.
+- Production Kubernetes cluster deployment evidence is not included.
 
 Production expectation:
 

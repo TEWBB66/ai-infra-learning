@@ -167,3 +167,9 @@ GPU final smoke test also passed on the A5000 host:
 - GPU resources were released after the smoke test
 
 The GPU smoke test was intentionally short and used CUDA_VISIBLE_DEVICES=0.
+
+## Kubernetes Validation
+
+The example Kubernetes manifests were smoke-tested in minikube with the mock backend. The validation covered the API Deployment, Service, PVC, runtime environment overrides, mock backend Service, port-forwarding, `/health`, `/ready`, `/v1/infer`, `/metrics/logs`, and `/metrics/prometheus`.
+
+See `docs/K8S_VALIDATION.md` for the command sequence and boundary.

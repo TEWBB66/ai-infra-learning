@@ -15,6 +15,7 @@ def test_project_evidence_files_exist():
     required_paths = [
         "docs/ALERTING_RUNBOOK.md",
         "docs/PRODUCTION_GAPS.md",
+        "docs/K8S_VALIDATION.md",
         "docs/reliability_experiments.md",
         "docs/MODEL_BACKEND_PROTOCOL.md",
         "reports/vllm_benchmark_2026_08_18/README.md",
@@ -37,6 +38,7 @@ def test_readme_links_core_evidence():
         "reports/vllm_admission_control_2026_08_19/README.md",
         "docs/ALERTING_RUNBOOK.md",
         "docs/PRODUCTION_GAPS.md",
+        "docs/K8S_VALIDATION.md",
         "Project Boundary",
     ]
 
@@ -114,12 +116,13 @@ def test_public_docs_describe_current_deployment_boundary():
     assert "Kubernetes" in readme
     assert "manifests" in readme
     assert "one API replica by default" in readme
-    assert "Live Kubernetes cluster deployment evidence" in readme
+    assert "Production Kubernetes cluster deployment evidence" in readme
 
     for snippet in [
         "Kubernetes example manifests include ConfigMap, Secret template, PVC, Deployment, and Service resources.",
         "defaults to a single API replica",
-        "have not been applied to a live cluster",
+        "smoke-tested in minikube with a mock backend",
+        "Production Kubernetes cluster deployment evidence is not included.",
         "No image registry release workflow is included yet.",
         "ServiceMonitor",
         "external durable storage",
@@ -135,7 +138,25 @@ def test_readme_production_gaps_summary_matches_current_boundary():
         "example Kubernetes manifests",
         "Docker image build CI",
         "A published image registry release",
-        "Live Kubernetes cluster deployment evidence",
+        "Production Kubernetes cluster deployment evidence",
         "ServiceMonitor or managed Prometheus integration",
     ]:
         assert snippet in readme
+
+
+
+def test_k8s_validation_document_records_mock_backend_boundary():
+    doc = Path("docs/K8S_VALIDATION.md").read_text(encoding="utf-8")
+    gaps = Path("docs/PRODUCTION_GAPS.md").read_text(encoding="utf-8")
+
+    for snippet in [
+        "minikube",
+        "mock backend",
+        "Local smoke test passed",
+        "It is not production cluster evidence.",
+        "does not validate a production Kubernetes cluster",
+    ]:
+        assert snippet in doc
+
+    assert "smoke-tested in minikube with a mock backend" in gaps
+    assert "Production Kubernetes cluster deployment evidence is not included." in gaps
