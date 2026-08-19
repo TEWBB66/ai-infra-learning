@@ -100,3 +100,26 @@ def test_sqlite_log_store_preserves_trace_id(tmp_path):
     )
 
     assert store.load_records()[0]["trace_id"] == "trace-1"
+
+
+def test_sqlite_log_store_preserves_client_id(tmp_path):
+    store = InferenceLogStore(
+        backend="sqlite",
+        log_path=tmp_path / "unused.log",
+        sqlite_path=tmp_path / "inference.sqlite3",
+    )
+
+    store.append(
+        "2026-08-19T00:00:00Z "
+        "request_id=req-1 "
+        "trace_id=trace-1 "
+        "client_id=client-1 "
+        "model=qwen "
+        "endpoint=/v1/infer "
+        "status=200 "
+        "latency_ms=50 "
+        "tokens_in=1 "
+        "tokens_out=2"
+    )
+
+    assert store.load_records()[0]["client_id"] == "client-1"

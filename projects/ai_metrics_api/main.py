@@ -24,6 +24,9 @@ from projects.ai_metrics_api.config import (
     ADMISSION_MODE,
     API_KEY,
     REQUIRE_API_KEY,
+    RATE_LIMIT_ENABLED,
+    RATE_LIMIT_MAX_REQUESTS,
+    RATE_LIMIT_WINDOW_SECONDS,
     MODEL_BACKEND,
     MODEL_SERVER_URL,
     VLLM_BASE_URL,
@@ -40,6 +43,7 @@ from projects.ai_metrics_api.config import (
     SERVICE_SLOW_REQUEST_WARNING_COUNT,
 )
 from projects.ai_metrics_api.log_store import InferenceLogStore
+from projects.ai_metrics_api.rate_limiter import FixedWindowRateLimiter
 
 app = FastAPI()
 
@@ -126,6 +130,12 @@ INFERENCE_GATE = InferenceGate(
     queue_timeout_ms=QUEUE_TIMEOUT_MS,
 )
 
+RATE_LIMITER = FixedWindowRateLimiter(
+    enabled=RATE_LIMIT_ENABLED,
+    max_requests=RATE_LIMIT_MAX_REQUESTS,
+    window_seconds=RATE_LIMIT_WINDOW_SECONDS,
+)
+
 def format_log_line(
     request_id: str,
     model: str,
@@ -135,6 +145,7 @@ def format_log_line(
     tokens_in: int,
     tokens_out: int,
     trace_id: Optional[str] = None,
+    client_id: Optional[str] = None,
 ) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     parts = [
@@ -144,6 +155,9 @@ def format_log_line(
 
     if trace_id:
         parts.append(f"trace_id={trace_id}")
+
+    if client_id:
+        parts.append(f"client_id={client_id}")
 
     parts.extend(
         [
@@ -321,11 +335,26 @@ def _resolve_context_id(value: Optional[str], prefix: str, header_name: str) -> 
     return value
 
 
+
+def _resolve_client_id(value: Optional[str]) -> str:
+    if value is None or value == "":
+        return "anonymous"
+
+    if not _REQUEST_CONTEXT_ID_RE.fullmatch(value):
+        raise HTTPException(
+            status_code=400,
+            detail="invalid X-Client-ID",
+        )
+
+    return value
+
+
 def handle_infer(
     request: InferRequest,
     endpoint: str,
     request_id_header: Optional[str] = None,
     trace_id_header: Optional[str] = None,
+    client_id_header: Optional[str] = None,
 ):
     if (
         request.force_status is not None
@@ -338,7 +367,27 @@ def handle_infer(
 
     request_id = _resolve_context_id(request_id_header, "req", "X-Request-ID")
     trace_id = _resolve_context_id(trace_id_header, "trace", "X-Trace-ID")
+    client_id = _resolve_client_id(client_id_header)
     start_time = time.perf_counter()
+
+    if not RATE_LIMITER.allow(client_id):
+        latency_ms = max(1, int((time.perf_counter() - start_time) * 1000))
+        log_line = format_log_line(
+            request_id=request_id,
+            model=request.model,
+            endpoint=endpoint,
+            status=429,
+            latency_ms=latency_ms,
+            tokens_in=request.tokens_in,
+            tokens_out=0,
+            trace_id=trace_id,
+            client_id=client_id,
+        )
+        append_log_line(log_line)
+        raise HTTPException(
+            status_code=429,
+            detail="rate limit exceeded",
+        )
 
     if not INFERENCE_GATE.try_acquire():
         latency_ms = max(1, int((time.perf_counter() - start_time) * 1000))
@@ -351,6 +400,7 @@ def handle_infer(
             tokens_in=request.tokens_in,
             tokens_out=0,
             trace_id=trace_id,
+            client_id=client_id,
         )
         append_log_line(log_line)
         raise HTTPException(
@@ -395,6 +445,7 @@ def handle_infer(
             tokens_in=result["tokens_in"],
             tokens_out=result["tokens_out"],
             trace_id=trace_id,
+            client_id=client_id,
         )
         append_log_line(log_line)
 
@@ -411,12 +462,14 @@ def infer(
     request: InferRequest,
     x_request_id: Optional[str] = Header(default=None, alias="X-Request-ID"),
     x_trace_id: Optional[str] = Header(default=None, alias="X-Trace-ID"),
+    x_client_id: Optional[str] = Header(default=None, alias="X-Client-ID"),
 ):
     return handle_infer(
         request,
         endpoint="/v1/infer",
         request_id_header=x_request_id,
         trace_id_header=x_trace_id,
+        client_id_header=x_client_id,
     )
 
 
@@ -425,12 +478,14 @@ def mock_infer(
     request: InferRequest,
     x_request_id: Optional[str] = Header(default=None, alias="X-Request-ID"),
     x_trace_id: Optional[str] = Header(default=None, alias="X-Trace-ID"),
+    x_client_id: Optional[str] = Header(default=None, alias="X-Client-ID"),
 ):
     return handle_infer(
         request,
         endpoint="/v1/mock-infer",
         request_id_header=x_request_id,
         trace_id_header=x_trace_id,
+        client_id_header=x_client_id,
     )
 
 @app.get("/metrics/logs")
@@ -592,6 +647,7 @@ def _snapshot_inference_gate(gate) -> dict:
 def get_prometheus_metrics():
     metrics = get_log_store().analyze()
     gate_metrics = _snapshot_inference_gate(INFERENCE_GATE)
+    rate_metrics = RATE_LIMITER.snapshot()
     admission_mode_label = _escape_prometheus_label(gate_metrics["admission_mode"])
 
     lines = [
@@ -631,6 +687,15 @@ def get_prometheus_metrics():
         "# HELP ai_inference_admission_mode Active inference admission mode",
         "# TYPE ai_inference_admission_mode gauge",
         f'ai_inference_admission_mode{{mode="{admission_mode_label}"}} 1',
+        "# HELP ai_inference_rate_limit_enabled Whether inference rate limiting is enabled",
+        "# TYPE ai_inference_rate_limit_enabled gauge",
+        f"ai_inference_rate_limit_enabled {int(rate_metrics['enabled'])}",
+        "# HELP ai_inference_rate_limit_active_clients Active client windows tracked by the rate limiter",
+        "# TYPE ai_inference_rate_limit_active_clients gauge",
+        f"ai_inference_rate_limit_active_clients {rate_metrics['active_clients']}",
+        "# HELP ai_inference_rate_limit_rejected_total Total inference requests rejected by the rate limiter",
+        "# TYPE ai_inference_rate_limit_rejected_total counter",
+        f"ai_inference_rate_limit_rejected_total {rate_metrics['rejected_total']}",
         "# HELP ai_inference_status_requests Number of inference requests by status code",
         "# TYPE ai_inference_status_requests gauge",
         "# HELP ai_inference_model_requests Number of inference requests by model",

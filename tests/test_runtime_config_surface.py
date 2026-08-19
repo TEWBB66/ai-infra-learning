@@ -18,6 +18,9 @@ REQUIRED_ENV_KEYS = [
     "QUEUE_TIMEOUT_MS",
     "REQUIRE_API_KEY",
     "API_KEY",
+    "RATE_LIMIT_ENABLED",
+    "RATE_LIMIT_MAX_REQUESTS",
+    "RATE_LIMIT_WINDOW_SECONDS",
     "MOCK_MODEL_DELAY_SCALE",
     "GRAFANA_ADMIN_PASSWORD",
 ]
@@ -49,3 +52,6 @@ def test_config_module_exposes_api_runtime_settings():
     assert config.QUEUE_TIMEOUT_MS >= 0
     assert isinstance(config.REQUIRE_API_KEY, bool)
     assert isinstance(config.API_KEY, str)
+    assert isinstance(config.RATE_LIMIT_ENABLED, bool)
+    assert config.RATE_LIMIT_MAX_REQUESTS >= 0
+    assert config.RATE_LIMIT_WINDOW_SECONDS >= 1

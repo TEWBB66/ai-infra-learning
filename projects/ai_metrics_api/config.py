@@ -44,3 +44,7 @@ QUEUE_TIMEOUT_MS = int(os.getenv("QUEUE_TIMEOUT_MS", "500"))
 REQUIRE_API_KEY = os.getenv("REQUIRE_API_KEY", "false").lower() in {"1", "true", "yes", "on"}
 API_KEY = os.getenv("API_KEY", "")
 
+RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+RATE_LIMIT_MAX_REQUESTS = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "60"))
+RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
+
