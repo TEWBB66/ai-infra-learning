@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-metrics-api
+  labels:
+    app.kubernetes.io/name: ai-metrics-api
+    app.kubernetes.io/component: inference-gateway
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: ai-metrics-api
+    app.kubernetes.io/component: inference-gateway
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

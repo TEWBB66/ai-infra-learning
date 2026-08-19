@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-metrics-api
+  labels:
+    app.kubernetes.io/name: ai-metrics-api
+    app.kubernetes.io/component: inference-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ai-metrics-api
+      app.kubernetes.io/component: inference-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ai-metrics-api
+        app.kubernetes.io/component: inference-gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics/prometheus"
+        prometheus.io/port: "8000"
+    spec:
+      containers:
+        - name: ai-metrics-api
+          image: ghcr.io/tewbb66/ai-metrics-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: ai-metrics-api-config
+            - secretRef:
+                name: ai-metrics-api-secret
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          volumeMounts:
+            - name: inference-data
+              mountPath: /app/data
+      volumes:
+        - name: inference-data
+          persistentVolumeClaim:
+            claimName: ai-metrics-api-data
