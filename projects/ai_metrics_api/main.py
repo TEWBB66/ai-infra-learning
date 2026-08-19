@@ -6,9 +6,9 @@ import time
 import re
 
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from projects.ai_metrics_api.model_client import call_model_server
 
@@ -349,6 +349,65 @@ def _resolve_client_id(value: Optional[str]) -> str:
     return value
 
 
+def _error_code_for_http_exception(status_code: int, detail: object) -> str:
+    message = str(detail).lower()
+
+    if status_code == 400:
+        return "bad_request"
+    if status_code == 401 and "api key" in message:
+        return "auth_missing"
+    if status_code == 403 and "api key" in message:
+        return "auth_invalid"
+    if status_code == 404:
+        return "not_found"
+    if status_code == 429 and "rate limit" in message:
+        return "rate_limit_exceeded"
+    if status_code == 429:
+        return "admission_rejected"
+    if status_code == 502:
+        return "backend_unavailable"
+    if status_code == 503:
+        return "service_unavailable"
+    if status_code == 504:
+        return "backend_timeout"
+    if status_code >= 500:
+        return "internal_error"
+    return "http_error"
+
+
+def _error_context_id(
+    request: Request,
+    exc: HTTPException,
+    header_name: str,
+    prefix: str,
+) -> str:
+    exc_headers = exc.headers or {}
+    value = exc_headers.get(header_name) or request.headers.get(header_name)
+
+    if value and _REQUEST_CONTEXT_ID_RE.fullmatch(value):
+        return value
+
+    return f"{prefix}-{uuid4().hex[:8]}"
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    request_id = _error_context_id(request, exc, "X-Request-ID", "req")
+    trace_id = _error_context_id(request, exc, "X-Trace-ID", "trace")
+    message = str(exc.detail)
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": exc.detail,
+            "error_code": _error_code_for_http_exception(exc.status_code, exc.detail),
+            "message": message,
+            "request_id": request_id,
+            "trace_id": trace_id,
+        },
+    )
+
+
 def handle_infer(
     request: InferRequest,
     endpoint: str,
@@ -387,6 +446,10 @@ def handle_infer(
         raise HTTPException(
             status_code=429,
             detail="rate limit exceeded",
+            headers={
+                "X-Request-ID": request_id,
+                "X-Trace-ID": trace_id,
+            },
         )
 
     if not INFERENCE_GATE.try_acquire():
@@ -406,6 +469,10 @@ def handle_infer(
         raise HTTPException(
             status_code=429,
             detail="too many in-flight inference requests",
+            headers={
+                "X-Request-ID": request_id,
+                "X-Trace-ID": trace_id,
+            },
         )
 
     try:
@@ -432,8 +499,14 @@ def handle_infer(
                 tokens_in=request.tokens_in,
                 tokens_out=0,
                 trace_id=trace_id,
+                client_id=client_id,
             )
             append_log_line(log_line)
+            exc.headers = {
+                **(exc.headers or {}),
+                "X-Request-ID": request_id,
+                "X-Trace-ID": trace_id,
+            }
             raise exc
 
         log_line = format_log_line(
