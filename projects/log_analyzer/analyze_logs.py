@@ -65,15 +65,7 @@ def empty_metrics():
     }
 
 
-def analyze_logs(log_path):
-    records = []
-
-    with open(log_path, "r", encoding="utf-8") as f:
-        for line in f:
-            record = parse_log_line(line)
-            if is_valid_record(record):
-                records.append(record)
-
+def analyze_records(records):
     total_requests = len(records)
 
     if total_requests == 0:
@@ -153,7 +145,7 @@ def analyze_logs(log_path):
             "latency_ms": int(record["latency_ms"]),
         })
 
-    result = {
+    return {
         "total_requests": total_requests,
         "success_requests": len(success_records),
         "failed_requests": failed_requests,
@@ -169,8 +161,17 @@ def analyze_logs(log_path):
         "metrics_by_model": metrics_by_model,
     }
 
-    return result
 
+def analyze_logs(log_path):
+    records = []
+
+    with open(log_path, "r", encoding="utf-8") as f:
+        for line in f:
+            record = parse_log_line(line)
+            if is_valid_record(record):
+                records.append(record)
+
+    return analyze_records(records)
 
 def main():
     log_path = "data/day02/inference.log"

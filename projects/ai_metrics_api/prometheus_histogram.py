@@ -44,8 +44,7 @@ def extract_latency_ms_values(log_path: str | Path) -> list[float]:
     return values
 
 
-def build_latency_histogram_prometheus(log_path: str | Path) -> list[str]:
-    latencies = extract_latency_ms_values(log_path)
+def build_latency_histogram_prometheus_from_values(latencies: list[float]) -> list[str]:
     total = len(latencies)
     latency_sum = round(sum(latencies), 3)
 
@@ -62,3 +61,18 @@ def build_latency_histogram_prometheus(log_path: str | Path) -> list[str]:
     lines.append(f"ai_inference_latency_ms_count {total}")
     lines.append(f"ai_inference_latency_ms_sum {latency_sum}")
     return lines
+
+def build_latency_histogram_prometheus_from_records(records: list[dict]) -> list[str]:
+    latencies = []
+    for record in records:
+        try:
+            latencies.append(float(record["latency_ms"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return build_latency_histogram_prometheus_from_values(latencies)
+
+
+def build_latency_histogram_prometheus(log_path: str | Path) -> list[str]:
+    return build_latency_histogram_prometheus_from_values(
+        extract_latency_ms_values(log_path)
+    )
