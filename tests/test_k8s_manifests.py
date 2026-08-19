@@ -159,7 +159,7 @@ def test_k8s_defaults_match_documented_single_replica_boundary():
     assert "single API replica" in production_gaps
     assert "smoke-tested in minikube with a mock backend" in production_gaps
     assert "Production Kubernetes cluster deployment evidence is not included." in production_gaps
-    assert "No image registry release workflow is included yet." in production_gaps
+    assert "publishes the API image to `ghcr.io/tewbb66/ai-metrics-api`" in production_gaps
 
 
 

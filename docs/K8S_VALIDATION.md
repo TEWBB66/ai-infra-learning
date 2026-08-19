@@ -12,7 +12,8 @@ Recorded validation environment:
 - minikube version: v1.38.1
 - Kubernetes client: v1.35.2
 - Docker server: 29.0.1
-- API image: locally built `ai-metrics-api:ci`
+- Default API image: `ghcr.io/tewbb66/ai-metrics-api:latest`
+- Local validation image override: locally built `ai-metrics-api:ci`
 - API backend mode: `mock`
 - API replicas: 1
 
@@ -38,6 +39,8 @@ Recorded validation environment:
     kubectl apply -n ai-infra-learning -f k8s/service.yaml
 
     kubectl set image -n ai-infra-learning deployment/ai-metrics-api ai-metrics-api=ai-metrics-api:ci
+
+The committed Deployment points at the GHCR image. This local workflow overrides it with the image loaded into minikube so the validation remains self-contained.
 
 ## Add a Mock Backend for Local Cluster Smoke Tests
 

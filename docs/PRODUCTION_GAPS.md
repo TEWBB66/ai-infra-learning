@@ -163,12 +163,12 @@ Current state:
 - Kubernetes example manifests include ConfigMap, Secret template, PVC, Deployment, and Service resources.
 - The Kubernetes Deployment defaults to a single API replica because SQLite logs and admission/rate-limit state are process-local.
 - The Kubernetes manifests have been smoke-tested in minikube with a mock backend.
-- No image registry release workflow is included yet.
+- A GitHub Actions workflow publishes the API image to `ghcr.io/tewbb66/ai-metrics-api` with `latest` and commit SHA tags.
 - Production Kubernetes cluster deployment evidence is not included.
 
 Production expectation:
 
-- Publish versioned container images through CI.
+- Promote immutable release tags through staging and production environments.
 - Validate manifests with cluster-side dry runs or a real test cluster.
 - Use external durable storage before increasing API replicas.
 - Add environment-specific configuration and secret management.

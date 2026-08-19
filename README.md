@@ -388,7 +388,7 @@ Grafana API validation should use the admin password configured in `docker-compo
 
 ## Production Gaps
 
-This project intentionally documents its production boundaries. It includes local Docker Compose validation, minikube validation for the example Kubernetes manifests, Docker image build CI, and real single-GPU vLLM benchmark evidence, but it does not yet include production-grade distributed controls such as:
+This project intentionally documents its production boundaries. It includes local Docker Compose validation, minikube validation for the example Kubernetes manifests, Docker image build CI, a GHCR image publishing workflow, and real single-GPU vLLM benchmark evidence, but it does not yet include production-grade distributed controls such as:
 
 - Full authorization, tenant management, or OIDC integration
 - Distributed rate limiting across API replicas
@@ -399,7 +399,7 @@ This project intentionally documents its production boundaries. It includes loca
 - Managed GPU scheduling
 - Autoscaling
 - SLO ownership and alert routing
-- A published image registry release
+- Environment-specific release promotion and rollback policy
 - Production Kubernetes cluster deployment evidence
 - ServiceMonitor or managed Prometheus integration
 - Cost and capacity management

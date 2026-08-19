@@ -125,7 +125,7 @@ def test_public_docs_describe_current_deployment_boundary():
         "defaults to a single API replica",
         "smoke-tested in minikube with a mock backend",
         "Production Kubernetes cluster deployment evidence is not included.",
-        "No image registry release workflow is included yet.",
+        "publishes the API image to `ghcr.io/tewbb66/ai-metrics-api`",
         "ServiceMonitor",
         "external durable storage",
     ]:
@@ -139,7 +139,7 @@ def test_readme_production_gaps_summary_matches_current_boundary():
     for snippet in [
         "example Kubernetes manifests",
         "Docker image build CI",
-        "A published image registry release",
+        "GHCR image publishing workflow",
         "Production Kubernetes cluster deployment evidence",
         "ServiceMonitor or managed Prometheus integration",
     ]:

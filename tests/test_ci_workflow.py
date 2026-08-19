@@ -30,3 +30,18 @@ def test_ci_workflow_builds_docker_image():
 
 def test_public_text_checker_is_available():
     assert Path("scripts/check_public_text.py").exists()
+
+def test_image_publish_workflow_targets_ghcr():
+    workflow = Path(".github/workflows/publish-image.yml").read_text(encoding="utf-8")
+
+    expected_snippets = [
+        "name: Publish Container Image",
+        "packages: write",
+        "docker/login-action@v3",
+        "docker/build-push-action@v6",
+        "ghcr.io/tewbb66/ai-metrics-api:latest",
+        "ghcr.io/tewbb66/ai-metrics-api:sha-${{ github.sha }}",
+    ]
+
+    for snippet in expected_snippets:
+        assert snippet in workflow
