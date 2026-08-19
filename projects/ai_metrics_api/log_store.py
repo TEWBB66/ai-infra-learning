@@ -72,6 +72,7 @@ class InferenceLogStore:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 created_at TEXT NOT NULL,
                 request_id TEXT NOT NULL,
+                trace_id TEXT NOT NULL DEFAULT '',
                 model TEXT NOT NULL,
                 endpoint TEXT NOT NULL,
                 status INTEGER NOT NULL,
@@ -81,6 +82,14 @@ class InferenceLogStore:
             )
             """
         )
+        columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(inference_logs)").fetchall()
+        }
+        if "trace_id" not in columns:
+            conn.execute(
+                "ALTER TABLE inference_logs ADD COLUMN trace_id TEXT NOT NULL DEFAULT ''"
+            )
 
     def _append_sqlite(self, log_line: str) -> None:
         record = parse_log_line(log_line)
@@ -98,6 +107,7 @@ class InferenceLogStore:
                 INSERT INTO inference_logs (
                     created_at,
                     request_id,
+                    trace_id,
                     model,
                     endpoint,
                     status,
@@ -105,11 +115,12 @@ class InferenceLogStore:
                     tokens_in,
                     tokens_out
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     timestamp,
                     record["request_id"],
+                    record.get("trace_id", ""),
                     record["model"],
                     record.get("endpoint", ""),
                     int(record["status"]),
@@ -129,6 +140,7 @@ class InferenceLogStore:
                 """
                 SELECT
                     request_id,
+                    trace_id,
                     model,
                     endpoint,
                     status,
@@ -142,10 +154,11 @@ class InferenceLogStore:
 
         records = []
         for row in rows:
-            request_id, model, endpoint, status, latency_ms, tokens_in, tokens_out = row
+            request_id, trace_id, model, endpoint, status, latency_ms, tokens_in, tokens_out = row
             records.append(
                 {
                     "request_id": request_id,
+                    "trace_id": trace_id,
                     "model": model,
                     "endpoint": endpoint,
                     "status": str(status),

@@ -3,6 +3,7 @@ from threading import Condition, Lock
 from typing import Optional
 from uuid import uuid4
 import time
+import re
 
 
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -133,19 +134,28 @@ def format_log_line(
     latency_ms: int,
     tokens_in: int,
     tokens_out: int,
+    trace_id: Optional[str] = None,
 ) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return (
-        f"{now} "
-        f"request_id={request_id} "
-        f"model={model} "
-        f"endpoint={endpoint} "
-        f"status={status} "
-        f"latency_ms={latency_ms} "
-        f"tokens_in={tokens_in} "
-        f"tokens_out={tokens_out}"
-    )
+    parts = [
+        now,
+        f"request_id={request_id}",
+    ]
 
+    if trace_id:
+        parts.append(f"trace_id={trace_id}")
+
+    parts.extend(
+        [
+            f"model={model}",
+            f"endpoint={endpoint}",
+            f"status={status}",
+            f"latency_ms={latency_ms}",
+            f"tokens_in={tokens_in}",
+            f"tokens_out={tokens_out}",
+        ]
+    )
+    return " ".join(parts)
 
 def get_log_store() -> InferenceLogStore:
     return InferenceLogStore(
@@ -295,7 +305,28 @@ def readiness_check():
         detail=f"unsupported MODEL_BACKEND: {MODEL_BACKEND}",
     )
 
-def handle_infer(request: InferRequest, endpoint: str):
+_REQUEST_CONTEXT_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
+
+
+def _resolve_context_id(value: Optional[str], prefix: str, header_name: str) -> str:
+    if value is None or value == "":
+        return f"{prefix}-{uuid4().hex[:8]}"
+
+    if not _REQUEST_CONTEXT_ID_RE.fullmatch(value):
+        raise HTTPException(
+            status_code=400,
+            detail=f"invalid {header_name}",
+        )
+
+    return value
+
+
+def handle_infer(
+    request: InferRequest,
+    endpoint: str,
+    request_id_header: Optional[str] = None,
+    trace_id_header: Optional[str] = None,
+):
     if (
         request.force_status is not None
         and request.force_status not in ALLOWED_FORCE_STATUS_CODES
@@ -305,7 +336,8 @@ def handle_infer(request: InferRequest, endpoint: str):
             detail="force_status must be one of 200, 400, 429, 500",
         )
 
-    request_id = f"req-{uuid4().hex[:8]}"
+    request_id = _resolve_context_id(request_id_header, "req", "X-Request-ID")
+    trace_id = _resolve_context_id(trace_id_header, "trace", "X-Trace-ID")
     start_time = time.perf_counter()
 
     if not INFERENCE_GATE.try_acquire():
@@ -318,6 +350,7 @@ def handle_infer(request: InferRequest, endpoint: str):
             latency_ms=latency_ms,
             tokens_in=request.tokens_in,
             tokens_out=0,
+            trace_id=trace_id,
         )
         append_log_line(log_line)
         raise HTTPException(
@@ -348,6 +381,7 @@ def handle_infer(request: InferRequest, endpoint: str):
                 latency_ms=latency_ms,
                 tokens_in=request.tokens_in,
                 tokens_out=0,
+                trace_id=trace_id,
             )
             append_log_line(log_line)
             raise exc
@@ -360,24 +394,44 @@ def handle_infer(request: InferRequest, endpoint: str):
             latency_ms=result["latency_ms"],
             tokens_in=result["tokens_in"],
             tokens_out=result["tokens_out"],
+            trace_id=trace_id,
         )
         append_log_line(log_line)
 
         return {
             "request_id": request_id,
+            "trace_id": trace_id,
             **result,
         }
     finally:
         INFERENCE_GATE.release()
 
 @app.post("/v1/infer", dependencies=[Depends(require_api_key)])
-def infer(request: InferRequest):
-    return handle_infer(request, endpoint="/v1/infer")
+def infer(
+    request: InferRequest,
+    x_request_id: Optional[str] = Header(default=None, alias="X-Request-ID"),
+    x_trace_id: Optional[str] = Header(default=None, alias="X-Trace-ID"),
+):
+    return handle_infer(
+        request,
+        endpoint="/v1/infer",
+        request_id_header=x_request_id,
+        trace_id_header=x_trace_id,
+    )
 
 
 @app.post("/v1/mock-infer", dependencies=[Depends(require_api_key)])
-def mock_infer(request: InferRequest):
-    return handle_infer(request, endpoint="/v1/mock-infer")
+def mock_infer(
+    request: InferRequest,
+    x_request_id: Optional[str] = Header(default=None, alias="X-Request-ID"),
+    x_trace_id: Optional[str] = Header(default=None, alias="X-Trace-ID"),
+):
+    return handle_infer(
+        request,
+        endpoint="/v1/mock-infer",
+        request_id_header=x_request_id,
+        trace_id_header=x_trace_id,
+    )
 
 @app.get("/metrics/logs")
 def get_log_metrics():
