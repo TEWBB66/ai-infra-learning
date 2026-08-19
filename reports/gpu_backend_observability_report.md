@@ -116,7 +116,7 @@ CUDA_VISIBLE_DEVICES=0
 
 No training job was started. The model server was used only for short inference validation.
 
-## Issues Encountered
+## Validation Notes
 
 Codespaces could not directly reach the lab machine at:
 
@@ -126,11 +126,7 @@ http://10.20.4.6:8002/health
 
 Because of that, the end-to-end validation was run locally on the GPU host by starting both the GPU model server and the metrics API on the same machine.
 
-The GPU server initially returned Internal Server Error in transformers mode because the system Pillow package was too old and did not provide PIL.Image.Resampling. This was fixed with a user-level package upgrade:
-
-```bash
-python3 -m pip install --user --upgrade Pillow
-```
+The transformers validation path required a user-level Pillow version with `PIL.Image.Resampling` support. No system packages were changed on the shared GPU host.
 
 The GPU host does not provide the python command, only python3. All GPU-host commands should therefore use python3 and python3 -m pip.
 
@@ -148,12 +144,9 @@ HTTP request -> model backend -> standardized response -> inference log -> metri
 
 This is the key engineering value of the project: backend implementation can change while logging, metrics, alerts, and incident analysis remain stable.
 
-## Next Steps
+## Validation Follow-up
 
-1. Run a small repeated-request experiment against the GPU backend.
-2. Run a larger-token request experiment and compare latency.
-3. Run a backend-failure experiment by stopping the GPU model server and checking API error handling.
-4. Improve GPU model server error handling so dependency and generation failures return structured HTTP errors instead of generic Internal Server Error.
+The later vLLM validation path supersedes this earlier remote HTTP GPU backend experiment for LLM serving benchmarks. This report remains as evidence for the backend protocol abstraction and GPU-host observability workflow.
 
 ## Backend Failure Retest
 
