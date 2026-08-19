@@ -19,6 +19,7 @@ ROOT_FILES = [
     Path("Dockerfile"),
     Path("docker-compose.yml"),
     Path("requirements.txt"),
+    Path("LICENSE"),
 ]
 
 TEXT_SUFFIXES = {
