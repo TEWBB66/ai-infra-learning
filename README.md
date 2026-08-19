@@ -2,7 +2,7 @@
 
 A learning-oriented AI infrastructure project for observing, benchmarking, and hardening LLM inference traffic.
 
-This project builds an end-to-end single-GPU LLM serving reliability layer with FastAPI, vLLM, Prometheus, Grafana, structured inference logs, model-level metrics, mock failure injection, API-side backpressure, and real Qwen2.5 GPU benchmark evidence.
+This project builds an end-to-end single-GPU LLM serving reliability layer with FastAPI, vLLM, Prometheus, Grafana, structured inference logs, optional SQLite log storage, model-level metrics, mock failure injection, API key protection, request tracing, per-client rate limiting, API-side backpressure, and real Qwen2.5 GPU benchmark evidence.
 
 It is not a production-scale distributed serving platform. It is designed to practice the engineering workflow behind LLM serving, observability, overload control, and reliability validation.
 
@@ -14,10 +14,14 @@ It is not a production-scale distributed serving platform. It is designed to pra
 - Route real requests to a vLLM OpenAI-compatible backend
 - Normalize mock and vLLM responses into the same internal metrics shape
 - Record structured inference logs for successful, failed, and rejected requests
+- Store inference logs through a file or SQLite backend
 - Calculate request count, success rate, error rate, latency percentiles, slow requests, alerts, and incident signals
-- Expose Prometheus-compatible service-level, status-level, in-flight, and model-level metrics
+- Expose Prometheus-compatible service-level, status-level, in-flight, rate-limit, and model-level metrics
 - Visualize metrics in Grafana
 - Apply API-side in-flight backpressure with HTTP 429 rejection
+- Protect inference endpoints with optional API key authentication
+- Propagate request and trace identifiers through responses and logs
+- Apply optional per-client inference rate limiting
 - Validate real Qwen2.5 serving on an NVIDIA RTX A5000 through vLLM
 - Run a real GPU benchmark matrix across concurrency and output length
 - Validate backpressure in front of a real vLLM backend, not only a mock backend
@@ -45,7 +49,9 @@ The repository also includes:
 flowchart LR
     Client["Client / curl / load test"] --> API["ai-metrics-api /v1/infer"]
 
-    API --> Gate["in-flight gate"]
+    API --> Auth["optional API key check"]
+    Auth --> RateLimit["optional per-client rate limit"]
+    RateLimit --> Gate["in-flight gate"]
     Gate --> BackendClient["backend client abstraction"]
 
     BackendClient --> Mock["mock-model-server /generate"]
@@ -54,7 +60,7 @@ flowchart LR
 
     VLLM --> Qwen["Qwen2.5 on RTX A5000"]
 
-    API --> Logs["structured inference log"]
+    API --> Logs["file or SQLite inference log"]
     Logs --> Metrics["metrics APIs"]
     API --> Prom["/metrics/prometheus"]
 
@@ -68,14 +74,17 @@ flowchart LR
 Main request flow:
 
 1. A client sends an inference request to `/v1/infer`.
-2. The API checks the in-flight gate.
-3. Accepted requests are routed to the configured backend.
-4. Rejected overload requests return HTTP 429 and are logged.
-5. Backend responses are normalized into `model`, `status`, `latency_ms`, `tokens_in`, and `tokens_out`.
-6. The API records a structured inference log entry.
-7. Metrics endpoints calculate latency, error rate, status counts, and model-level metrics.
-8. Prometheus scrapes `/metrics/prometheus`.
-9. Grafana visualizes service-level and model-level observability.
+2. The API optionally validates an API key.
+3. The API resolves request, trace, and client identifiers.
+4. The API applies optional per-client rate limiting.
+5. The API checks the in-flight gate.
+6. Accepted requests are routed to the configured backend.
+7. Rejected requests return HTTP 429 and are logged.
+8. Backend responses are normalized into `model`, `status`, `latency_ms`, `tokens_in`, and `tokens_out`.
+9. The API records a structured inference log entry through the configured log backend.
+10. Metrics endpoints calculate latency, error rate, status counts, and model-level metrics.
+11. Prometheus scrapes `/metrics/prometheus`.
+12. Grafana visualizes service-level and model-level observability.
 
 ## Quickstart
 
@@ -177,7 +186,16 @@ MOCK_MODEL_SERVER_URL=http://mock-model-server:8001/generate
 VLLM_BASE_URL=http://127.0.0.1:8001/v1
 VLLM_MODEL=Qwen/Qwen2.5-0.5B-Instruct
 MODEL_SERVER_TIMEOUT_SEC=60
+LOG_BACKEND=file|sqlite
+INFERENCE_LOG_PATH=/app/data/day02/inference.log
+SQLITE_LOG_PATH=/app/data/day02/inference.sqlite3
+REQUIRE_API_KEY=false
+API_KEY=
 MAX_IN_FLIGHT_REQUESTS=8
+ADMISSION_MODE=reject|queue
+RATE_LIMIT_ENABLED=false
+RATE_LIMIT_MAX_REQUESTS=60
+RATE_LIMIT_WINDOW_SECONDS=60
 ```
 
 The older `remote_http` and `projects/gpu_model_server` path remains documented as an earlier GPU validation path, but the current LLM serving benchmark uses vLLM.
@@ -210,6 +228,12 @@ ai_inference_p95_latency_ms
 ai_inference_p99_latency_ms
 ai_inference_slow_request_count
 ai_inference_current_in_flight_requests
+ai_inference_queue_depth
+ai_inference_queue_rejected_total
+ai_inference_queue_timeout_total
+ai_inference_rate_limit_enabled
+ai_inference_rate_limit_active_clients
+ai_inference_rate_limit_rejected_total
 ai_inference_status_requests{status="..."}
 ```
 
@@ -246,12 +270,15 @@ Grafana dashboard panels include:
 The project includes reliability-focused behavior:
 
 - Failed backend calls are written to the inference log
+- Inference logs can be stored in local files or SQLite
 - Backend unavailable errors become structured `502` responses
 - Backend timeouts become structured `504` responses
 - Invalid backend responses become structured `502` responses
 - vLLM backend responses are normalized into the same log and metrics shape as mock responses
 - API-side in-flight backpressure rejects overload with HTTP 429
+- Optional per-client rate limiting rejects excess client traffic with HTTP 429
 - Rejected requests are logged and counted in Prometheus status metrics
+- Request and trace identifiers are preserved in responses and logs
 - The in-flight gauge returns to 0 after successful, failed, and rejected paths
 - `ai-metrics-api` exposes `/health` and `/ready`
 
@@ -273,7 +300,7 @@ Validation completed on August 18, 2026:
 
 - vLLM `/v1/models` smoke test succeeded
 - vLLM `/v1/chat/completions` smoke test succeeded
-- P01 `/v1/infer` routed through real vLLM successfully
+- `/v1/infer` routed through real vLLM successfully
 - Small real-vLLM load sample completed with 10/10 HTTP 200
 - Real-backend backpressure test completed with 28 HTTP 429 responses out of 30 requests when `MAX_IN_FLIGHT_REQUESTS=2`
 - Full benchmark matrix completed with 750/750 successful requests
@@ -339,14 +366,14 @@ Grafana API validation should use the admin password configured in `docker-compo
 
 ## Production Gaps
 
-This project intentionally focuses on learning and core observability workflow. It does not yet include production-grade controls such as:
+This project intentionally focuses on learning and core observability workflow. It does not yet include production-grade distributed controls such as:
 
-- Authentication and authorization
-- Distributed rate limiting
+- Full authorization, tenant management, or OIDC integration
+- Distributed rate limiting across API replicas
 - Distributed global backpressure across API replicas
-- Durable log storage
+- External durable log storage such as Postgres, ClickHouse, or object storage
 - Long-term metrics retention
-- Distributed tracing
+- Distributed tracing backend integration such as OpenTelemetry collector plus Jaeger or Tempo
 - GPU scheduling
 - Autoscaling
 - SLO ownership and alert routing
@@ -382,7 +409,7 @@ The current system is best described as a single-GPU LLM serving reliability lay
 request -> admission control -> backend -> structured log -> metrics -> Prometheus -> Grafana -> alerts -> incidents
 ```
 
-Current limits are intentional and documented: single GPU, single API instance, in-memory gate, local file logs, no distributed global rate limit, and no custom batching layer because vLLM owns the serving engine.
+Current limits are intentional and documented: single GPU, single API instance, in-memory admission and rate-limit state, local file or SQLite logs, no distributed global rate limit, and no custom batching layer because vLLM owns the serving engine.
 
 ## Operations
 
