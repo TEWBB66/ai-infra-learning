@@ -39,3 +39,6 @@ ADMISSION_MODE = os.getenv("ADMISSION_MODE", "reject").lower()
 MAX_QUEUE_SIZE = int(os.getenv("MAX_QUEUE_SIZE", "32"))
 QUEUE_TIMEOUT_MS = int(os.getenv("QUEUE_TIMEOUT_MS", "500"))
 
+REQUIRE_API_KEY = os.getenv("REQUIRE_API_KEY", "false").lower() in {"1", "true", "yes", "on"}
+API_KEY = os.getenv("API_KEY", "")
+

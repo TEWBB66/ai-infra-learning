@@ -5,7 +5,7 @@ from uuid import uuid4
 import time
 
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 from fastapi.responses import PlainTextResponse
 
@@ -20,6 +20,8 @@ from projects.ai_metrics_api.config import (
     QUEUE_TIMEOUT_MS,
     MAX_QUEUE_SIZE,
     ADMISSION_MODE,
+    API_KEY,
+    REQUIRE_API_KEY,
     MODEL_BACKEND,
     MODEL_SERVER_URL,
     VLLM_BASE_URL,
@@ -208,6 +210,38 @@ def build_alerts(metrics):
         "alerts": alerts,
     }
 
+
+
+def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
+    if not authorization:
+        return None
+
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        return None
+    return token
+
+
+def require_api_key(
+    authorization: Optional[str] = Header(default=None),
+    x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
+) -> None:
+    if not REQUIRE_API_KEY:
+        return
+
+    if not API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="API key authentication is enabled but API_KEY is not configured",
+        )
+
+    presented_key = _extract_bearer_token(authorization) or x_api_key
+    if not presented_key:
+        raise HTTPException(status_code=401, detail="missing API key")
+
+    if presented_key != API_KEY:
+        raise HTTPException(status_code=403, detail="invalid API key")
+
 class InferRequest(BaseModel):
     model: str = "qwen2.5-7b"
     endpoint: str = "/v1/infer"
@@ -334,12 +368,12 @@ def handle_infer(request: InferRequest, endpoint: str):
     finally:
         INFERENCE_GATE.release()
 
-@app.post("/v1/infer")
+@app.post("/v1/infer", dependencies=[Depends(require_api_key)])
 def infer(request: InferRequest):
     return handle_infer(request, endpoint="/v1/infer")
 
 
-@app.post("/v1/mock-infer")
+@app.post("/v1/mock-infer", dependencies=[Depends(require_api_key)])
 def mock_infer(request: InferRequest):
     return handle_infer(request, endpoint="/v1/mock-infer")
 
