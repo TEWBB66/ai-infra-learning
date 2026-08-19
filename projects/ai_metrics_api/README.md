@@ -166,7 +166,7 @@ python -m pytest -q
 Expected result:
 
 ```text
-56 passed, 1 warning
+all tests passed, with at most the known FastAPI / Starlette TestClient warning
 ```
 
 The warning is the known FastAPI / Starlette TestClient warning.

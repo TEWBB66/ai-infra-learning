@@ -14,6 +14,13 @@ SCAN_ROOTS = [
     Path("scripts"),
 ]
 
+ROOT_FILES = [
+    Path(".env.example"),
+    Path("Dockerfile"),
+    Path("docker-compose.yml"),
+    Path("requirements.txt"),
+]
+
 TEXT_SUFFIXES = {
     ".md",
     ".py",
@@ -23,6 +30,7 @@ TEXT_SUFFIXES = {
     ".txt",
     ".example",
 }
+
 
 BLOCKED_TERMS = [
     "P" + "01",
@@ -50,6 +58,10 @@ def is_text_file(path: Path) -> bool:
 
 
 def iter_public_files():
+    for path in ROOT_FILES:
+        if path.exists() and path.is_file() and is_text_file(path):
+            yield path
+
     for root in SCAN_ROOTS:
         if root.is_file():
             yield root

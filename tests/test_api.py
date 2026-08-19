@@ -125,7 +125,11 @@ def test_metrics_alerts():
     assert data["service_status"] in ["healthy", "warning", "critical"]
 
 
-def test_metrics_model_filter_existing_model():
+def test_metrics_model_filter_existing_model(monkeypatch):
+    from projects.ai_metrics_api import main
+
+    monkeypatch.setattr(main, "LOG_PATH", "reports/sample_inference_log.txt")
+
     response = client.get("/metrics/models?model_name=qwen2.5-7b")
 
     assert response.status_code == 200
@@ -221,7 +225,11 @@ def test_prometheus_metrics():
     assert "ai_inference_p95_latency_ms" in body
     assert "ai_inference_model_requests" in body
 
-def test_prometheus_metrics_include_model_level_metrics():
+def test_prometheus_metrics_include_model_level_metrics(monkeypatch):
+    from projects.ai_metrics_api import main
+
+    monkeypatch.setattr(main, "LOG_PATH", "reports/sample_inference_log.txt")
+
     response = client.get("/metrics/prometheus")
 
     assert response.status_code == 200

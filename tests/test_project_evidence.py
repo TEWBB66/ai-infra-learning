@@ -179,3 +179,16 @@ def test_vllm_soak_report_records_real_backend_results():
         assert snippet in report
 
     assert "reports/vllm_soak_2026_08_19/README.md" in readme
+
+def test_public_tree_omits_low_signal_learning_residue():
+    removed_paths = [
+        "lessons/day01/notes.txt",
+        "projects/python_basics/README.md",
+        "projects/python_basics/request_stats.py",
+        "data/day02/inference.log",
+    ]
+
+    for path in removed_paths:
+        assert not Path(path).exists(), f"low-signal public residue remains: {path}"
+
+    assert Path("reports/sample_inference_log.txt").exists()

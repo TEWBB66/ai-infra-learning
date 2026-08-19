@@ -8,7 +8,7 @@ def write_log(tmp_path, text):
 
 
 def test_analyze_logs_summary_metrics():
-    metrics = analyze_logs("data/day02/inference.log")
+    metrics = analyze_logs("reports/sample_inference_log.txt")
 
     assert metrics["total_requests"] >= 1
     assert metrics["success_requests"] >= 1
