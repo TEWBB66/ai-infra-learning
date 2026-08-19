@@ -19,8 +19,26 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          python -m pip install --disable-pip-version-check -r requirements.txt
 
       - name: Run tests
         run: python -m pytest -q
+
+      - name: Compile Python files
+        run: python -m compileall -q projects tests scripts
+
+      - name: Validate Grafana dashboard JSON
+        run: python -m json.tool monitoring/grafana/dashboards/ai_metrics_dashboard.json >/tmp/dashboard.json
+
+      - name: Check diff whitespace
+        run: git diff --check
+
+  docker-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build API image
+        run: docker build -t ai-metrics-api:ci .
