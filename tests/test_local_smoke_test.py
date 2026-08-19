@@ -34,6 +34,8 @@ def fake_urlopen(request, timeout):
 
     if path == "/v1/infer":
         assert request.headers["X-client-id"] == "local-smoke-test"
+        payload = json.loads(request.data.decode("utf-8"))
+        assert payload["force_status"] == 200
         return FakeResponse(
             200,
             json.dumps(

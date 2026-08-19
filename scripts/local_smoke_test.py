@@ -73,6 +73,8 @@ def run_smoke_test(args):
         "tokens_in": args.tokens_in,
         "tokens_out": args.tokens_out,
     }
+    if args.force_status is not None:
+        payload["force_status"] = args.force_status
     status, inference = request_json(
         args.base_url,
         "POST",
@@ -119,6 +121,7 @@ def parse_args(argv):
     parser.add_argument("--tokens-in", type=int, default=32)
     parser.add_argument("--tokens-out", type=int, default=8)
     parser.add_argument("--timeout", type=float, default=5.0)
+    parser.add_argument("--force-status", type=int, default=200)
     return parser.parse_args(argv)
 
 
