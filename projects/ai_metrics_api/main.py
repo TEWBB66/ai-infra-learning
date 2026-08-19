@@ -5,6 +5,7 @@ from uuid import uuid4
 import time
 import re
 
+import httpx
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -27,8 +28,10 @@ from projects.ai_metrics_api.config import (
     RATE_LIMIT_ENABLED,
     RATE_LIMIT_MAX_REQUESTS,
     RATE_LIMIT_WINDOW_SECONDS,
+    READINESS_CHECK_BACKEND,
     MODEL_BACKEND,
     MODEL_SERVER_URL,
+    MODEL_SERVER_TIMEOUT_SEC,
     VLLM_BASE_URL,
     VLLM_MODEL,
     MODEL_ERROR_RATE_CRITICAL_THRESHOLD,
@@ -295,24 +298,74 @@ def health_check():
         "service": "ai-metrics-api",
     }
 
+def _check_mock_or_remote_backend() -> dict:
+    try:
+        response = httpx.post(
+            MODEL_SERVER_URL,
+            json={"model": "readiness", "tokens_in": 1, "tokens_out": 1},
+            timeout=min(MODEL_SERVER_TIMEOUT_SEC, 2.0),
+        )
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"model backend readiness check failed: {exc.__class__.__name__}",
+        ) from exc
+
+    if response.status_code >= 500:
+        raise HTTPException(
+            status_code=503,
+            detail=f"model backend readiness check returned {response.status_code}",
+        )
+
+    return {"backend_check": "ok"}
+
+
+def _check_vllm_backend() -> dict:
+    models_url = f"{VLLM_BASE_URL}/models"
+    try:
+        response = httpx.get(
+            models_url,
+            timeout=min(MODEL_SERVER_TIMEOUT_SEC, 2.0),
+        )
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"vLLM readiness check failed: {exc.__class__.__name__}",
+        ) from exc
+
+    if response.status_code >= 500:
+        raise HTTPException(
+            status_code=503,
+            detail=f"vLLM readiness check returned {response.status_code}",
+        )
+
+    return {"backend_check": "ok"}
+
+
 @app.get("/ready")
 def readiness_check():
     if MODEL_BACKEND in {"mock", "remote_http"}:
-        return {
+        response = {
             "status": "ready",
             "service": "ai-metrics-api",
             "backend": MODEL_BACKEND,
             "model_server_url": MODEL_SERVER_URL,
         }
+        if READINESS_CHECK_BACKEND:
+            response.update(_check_mock_or_remote_backend())
+        return response
 
     if MODEL_BACKEND == "vllm":
-        return {
+        response = {
             "status": "ready",
             "service": "ai-metrics-api",
             "backend": MODEL_BACKEND,
             "vllm_base_url": VLLM_BASE_URL,
             "vllm_model": VLLM_MODEL,
         }
+        if READINESS_CHECK_BACKEND:
+            response.update(_check_vllm_backend())
+        return response
 
     raise HTTPException(
         status_code=503,
