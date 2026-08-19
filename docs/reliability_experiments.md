@@ -159,7 +159,7 @@ Validated behavior:
 
 - vLLM `/v1/models` returned the served model
 - vLLM `/v1/chat/completions` generated a response
-- P01 `/v1/infer` routed through vLLM
+- `/v1/infer` routed through vLLM
 - Structured logs captured vLLM latency and token counts
 - Prometheus metrics captured status and model request counts
 

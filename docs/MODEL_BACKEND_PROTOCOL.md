@@ -151,7 +151,7 @@ Its purpose is to prepare the project for a short-term remote GPU experiment:
 ai-metrics-api -> remote_http backend -> GPU model server -> inference log -> metrics -> Prometheus -> Grafana
 ```
 
-The template can later be upgraded in two possible ways:
+The template supports two implementation paths:
 
 1. FastAPI + Transformers
    - easier to implement
