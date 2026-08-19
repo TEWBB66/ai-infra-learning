@@ -1,0 +1,71 @@
+# HELP ai_inference_total_requests Total number of inference requests
+# TYPE ai_inference_total_requests gauge
+ai_inference_total_requests 631
+# HELP ai_inference_success_requests Total number of successful inference requests
+# TYPE ai_inference_success_requests gauge
+ai_inference_success_requests 631
+# HELP ai_inference_failed_requests Total number of failed inference requests
+# TYPE ai_inference_failed_requests gauge
+ai_inference_failed_requests 0
+# HELP ai_inference_error_rate Inference request error rate
+# TYPE ai_inference_error_rate gauge
+ai_inference_error_rate 0.0
+# HELP ai_inference_p95_latency_ms P95 inference latency in milliseconds
+# TYPE ai_inference_p95_latency_ms gauge
+ai_inference_p95_latency_ms 942
+# HELP ai_inference_p99_latency_ms P99 inference latency in milliseconds
+# TYPE ai_inference_p99_latency_ms gauge
+ai_inference_p99_latency_ms 1033
+# HELP ai_inference_slow_request_count Number of slow inference requests
+# TYPE ai_inference_slow_request_count gauge
+ai_inference_slow_request_count 631
+# HELP ai_inference_current_in_flight_requests Current in-flight inference requests
+# TYPE ai_inference_current_in_flight_requests gauge
+ai_inference_current_in_flight_requests 0
+# HELP ai_inference_queue_depth Current queued inference requests
+# TYPE ai_inference_queue_depth gauge
+ai_inference_queue_depth 0
+# HELP ai_inference_queue_rejected_total Total inference requests rejected because the queue was full
+# TYPE ai_inference_queue_rejected_total counter
+ai_inference_queue_rejected_total 0
+# HELP ai_inference_queue_timeout_total Total inference requests rejected after queue timeout
+# TYPE ai_inference_queue_timeout_total counter
+ai_inference_queue_timeout_total 0
+# HELP ai_inference_admission_mode Active inference admission mode
+# TYPE ai_inference_admission_mode gauge
+ai_inference_admission_mode{mode="queue"} 1
+# HELP ai_inference_rate_limit_enabled Whether inference rate limiting is enabled
+# TYPE ai_inference_rate_limit_enabled gauge
+ai_inference_rate_limit_enabled 0
+# HELP ai_inference_rate_limit_active_clients Active client windows tracked by the rate limiter
+# TYPE ai_inference_rate_limit_active_clients gauge
+ai_inference_rate_limit_active_clients 0
+# HELP ai_inference_rate_limit_rejected_total Total inference requests rejected by the rate limiter
+# TYPE ai_inference_rate_limit_rejected_total counter
+ai_inference_rate_limit_rejected_total 0
+# HELP ai_inference_status_requests Number of inference requests by status code
+# TYPE ai_inference_status_requests gauge
+# HELP ai_inference_model_requests Number of inference requests by model
+# TYPE ai_inference_model_requests gauge
+ai_inference_status_requests{status="200"} 631
+ai_inference_model_requests{model="Qwen/Qwen2.5-0.5B-Instruct"} 631
+# HELP ai_inference_model_errors Number of failed inference requests by model
+# TYPE ai_inference_model_errors gauge
+ai_inference_model_errors{model="Qwen/Qwen2.5-0.5B-Instruct"} 0
+# HELP ai_inference_model_error_rate Error rate by model
+# TYPE ai_inference_model_error_rate gauge
+ai_inference_model_error_rate{model="Qwen/Qwen2.5-0.5B-Instruct"} 0.0
+# HELP ai_inference_model_p95_latency_ms P95 inference latency by model in milliseconds
+# TYPE ai_inference_model_p95_latency_ms gauge
+ai_inference_model_p95_latency_ms{model="Qwen/Qwen2.5-0.5B-Instruct"} 942
+# HELP ai_inference_latency_ms Request latency histogram in milliseconds
+# TYPE ai_inference_latency_ms histogram
+ai_inference_latency_ms_bucket{le="100"} 0
+ai_inference_latency_ms_bucket{le="250"} 0
+ai_inference_latency_ms_bucket{le="500"} 5
+ai_inference_latency_ms_bucket{le="1000"} 616
+ai_inference_latency_ms_bucket{le="2500"} 630
+ai_inference_latency_ms_bucket{le="5000"} 631
+ai_inference_latency_ms_bucket{le="+Inf"} 631
+ai_inference_latency_ms_count 631
+ai_inference_latency_ms_sum 471280.0

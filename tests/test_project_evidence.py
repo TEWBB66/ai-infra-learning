@@ -20,6 +20,7 @@ def test_project_evidence_files_exist():
         "docs/MODEL_BACKEND_PROTOCOL.md",
         "reports/vllm_benchmark_2026_08_18/README.md",
         "reports/vllm_admission_control_2026_08_19/README.md",
+        "reports/vllm_soak_2026_08_19/README.md",
         "monitoring/prometheus-rules.yml",
         "projects/ai_metrics_api/log_store.py",
         "projects/ai_metrics_api/rate_limiter.py",
@@ -36,6 +37,7 @@ def test_readme_links_core_evidence():
         "Real vLLM GPU Serving Validation",
         "reports/vllm_benchmark_2026_08_18/README.md",
         "reports/vllm_admission_control_2026_08_19/README.md",
+        "reports/vllm_soak_2026_08_19/README.md",
         "docs/ALERTING_RUNBOOK.md",
         "docs/PRODUCTION_GAPS.md",
         "docs/K8S_VALIDATION.md",
@@ -160,3 +162,20 @@ def test_k8s_validation_document_records_mock_backend_boundary():
 
     assert "smoke-tested in minikube with a mock backend" in gaps
     assert "Production Kubernetes cluster deployment evidence is not included." in gaps
+
+
+def test_vllm_soak_report_records_real_backend_results():
+    report = Path("reports/vllm_soak_2026_08_19/README.md").read_text(encoding="utf-8")
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    for snippet in [
+        "vLLM Soak Benchmark - 2026-08-19",
+        "Benchmark HTTP 200 responses | 600 / 600",
+        "Benchmark logical 200 responses | 600 / 600",
+        "API error rate | 0.0",
+        "GPU 0 only",
+        "single-node, single-GPU soak benchmark",
+    ]:
+        assert snippet in report
+
+    assert "reports/vllm_soak_2026_08_19/README.md" in readme

@@ -319,6 +319,7 @@ Validation completed on August 18, 2026:
 - Small real-vLLM load sample completed with 10/10 HTTP 200
 - Real-backend backpressure test completed with 28 HTTP 429 responses out of 30 requests when `MAX_IN_FLIGHT_REQUESTS=2`
 - Full benchmark matrix completed with 750/750 successful requests
+- Sustained vLLM soak completed with 600/600 benchmark requests returning HTTP 200 and logical status 200
 
 Benchmark matrix:
 
@@ -344,6 +345,12 @@ Full report:
 
 ```text
 reports/vllm_benchmark_2026_08_18/README.md
+```
+
+Additional sustained real-backend soak report:
+
+```text
+reports/vllm_soak_2026_08_19/README.md
 ```
 
 Earlier Transformers GPU backend validation report:
