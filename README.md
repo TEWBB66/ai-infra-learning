@@ -9,7 +9,7 @@ It is not a production-scale distributed serving platform. It is designed to pra
 ## What This Project Demonstrates
 
 - Accept inference requests through a stable FastAPI `/v1/infer` endpoint
-- Switch model backends with `MODEL_BACKEND=mock|vllm`
+- Switch model backends with `MODEL_BACKEND=mock|remote_http|vllm`
 - Keep a deterministic mock backend for reproducible failure injection and overload tests
 - Route real requests to a vLLM OpenAI-compatible backend
 - Normalize mock and vLLM responses into the same internal metrics shape
@@ -113,10 +113,10 @@ python -m pytest -q
 Expected result:
 
 ```text
-56 passed, 1 warning
+all tests passed, with at most the known FastAPI / Starlette TestClient warning
 ```
 
-The warning comes from FastAPI / Starlette TestClient and does not indicate a project failure.
+The exact test count changes as coverage grows. The FastAPI / Starlette TestClient warning does not indicate a project failure.
 
 For the full local validation workflow, see:
 
@@ -181,11 +181,13 @@ MODEL_BACKEND=vllm
 Runtime variables:
 
 ```text
-MODEL_BACKEND=mock|vllm
+MODEL_BACKEND=mock|remote_http|vllm
 MOCK_MODEL_SERVER_URL=http://mock-model-server:8001/generate
+MODEL_SERVER_URL=http://mock-model-server:8001/generate
 VLLM_BASE_URL=http://127.0.0.1:8001/v1
 VLLM_MODEL=Qwen/Qwen2.5-0.5B-Instruct
 MODEL_SERVER_TIMEOUT_SEC=60
+READINESS_CHECK_BACKEND=false
 LOG_BACKEND=file|sqlite
 INFERENCE_LOG_PATH=/app/data/day02/inference.log
 SQLITE_LOG_PATH=/app/data/day02/inference.sqlite3
@@ -193,6 +195,8 @@ REQUIRE_API_KEY=false
 API_KEY=
 MAX_IN_FLIGHT_REQUESTS=8
 ADMISSION_MODE=reject|queue
+MAX_QUEUE_SIZE=32
+QUEUE_TIMEOUT_MS=500
 RATE_LIMIT_ENABLED=false
 RATE_LIMIT_MAX_REQUESTS=60
 RATE_LIMIT_WINDOW_SECONDS=60
@@ -260,10 +264,21 @@ Grafana dashboard panels include:
 - Total Requests
 - Error Rate
 - P95 Latency
+- Failed Requests
 - Slow Requests
+- Status Requests by Code
 - Model Request Count
 - Model Error Rate
 - Model P95 Latency
+- Current In-Flight Requests
+- Admission Queue Depth
+- Queue Rejections
+- Queue Timeouts
+- Admission Mode
+- Rate Limit Enabled
+- Rate Limit Active Clients
+- Rate Limit Rejections
+- P95 Latency from Histogram Buckets
 
 ## Reliability Features
 
@@ -377,7 +392,7 @@ This project intentionally focuses on learning and core observability workflow. 
 - GPU scheduling
 - Autoscaling
 - SLO ownership and alert routing
-- Production deployment manifests
+- Live Kubernetes cluster deployment evidence
 - Cost and capacity management
 
 Production gap analysis:
@@ -409,7 +424,7 @@ The current system is best described as a single-GPU LLM serving reliability lay
 request -> admission control -> backend -> structured log -> metrics -> Prometheus -> Grafana -> alerts -> incidents
 ```
 
-Current limits are intentional and documented: single GPU, single API instance, in-memory admission and rate-limit state, local file or SQLite logs, no distributed global rate limit, and no custom batching layer because vLLM owns the serving engine.
+Current limits are intentional and documented: single GPU, one API replica by default in the Kubernetes example manifests, in-memory admission and rate-limit state, local file or SQLite logs, no distributed global rate limit, no external database, and no custom batching layer because vLLM owns the serving engine.
 
 ## Operations
 

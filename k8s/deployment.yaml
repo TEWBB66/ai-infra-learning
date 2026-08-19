@@ -6,7 +6,7 @@ metadata:
     app.kubernetes.io/name: ai-metrics-api
     app.kubernetes.io/component: inference-gateway
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: ai-metrics-api

@@ -8,8 +8,10 @@ It is not yet a production-scale serving platform. This document records the mai
 
 Current state:
 
-- API endpoints are open inside the local development environment.
-- There is no user authentication.
+- Optional API key authentication protects inference endpoints when enabled.
+- Bearer token and `X-API-Key` authentication paths are supported.
+- Health, readiness, and metrics endpoints remain unauthenticated for local operations and scraping.
+- There is no user identity system, tenant model, or OIDC integration.
 - There is no service-to-service authentication between ai-metrics-api and model backends.
 
 Production expectation:
@@ -22,8 +24,10 @@ Production expectation:
 
 Current state:
 
-- Requests are accepted without per-user or per-client limits.
-- There is no protection against accidental request bursts.
+- Optional per-client rate limiting is implemented inside each API process.
+- `X-Client-ID` can identify clients for local validation.
+- Rejected requests return structured HTTP 429 responses and are counted in metrics.
+- Rate-limit state is not shared across API replicas.
 
 Production expectation:
 
@@ -35,9 +39,9 @@ Production expectation:
 
 Current state:
 
-- Requests are handled synchronously.
-- The API includes a single-instance in-memory in-flight gate.
-- Overload can be rejected with HTTP 429 when `MAX_IN_FLIGHT_REQUESTS` is reached.
+- The API includes single-process in-flight admission control.
+- Admission mode can reject immediately or queue requests with a bounded queue and timeout.
+- Rejected and timed-out requests are logged and exposed through Prometheus metrics.
 - The in-flight gate was validated against both the mock backend and a real vLLM backend.
 - There is no durable request queue, retry policy, or distributed global rate limit.
 
@@ -53,9 +57,10 @@ Production expectation:
 
 Current state:
 
-- Inference logs are written to a local file.
-- The log file is useful for learning and local experiments.
-- It is not suitable for distributed production workloads.
+- Inference logs can be stored in local files or SQLite.
+- The Kubernetes example uses a PVC-backed local SQLite path for a single API replica.
+- Local file and SQLite storage are useful for reproducible validation.
+- They are not suitable as the primary log store for distributed production workloads.
 
 Production expectation:
 
@@ -70,6 +75,9 @@ Current state:
 
 - Metrics are calculated from local inference logs.
 - Prometheus scrapes current metrics from the API.
+- Prometheus and Grafana are available through the local Docker Compose stack.
+- Kubernetes manifests include scrape annotations, but not a ServiceMonitor.
+- Long-term metrics retention is not configured.
 
 Production expectation:
 
@@ -151,16 +159,19 @@ Production expectation:
 Current state:
 
 - Local development uses Docker Compose.
-- GPU experiments run manually on a remote lab GPU server.
-- Real vLLM serving was validated on a single RTX A5000 GPU, but not deployed as a managed production service.
+- The API container has liveness and readiness checks.
+- Kubernetes example manifests include ConfigMap, Secret template, PVC, Deployment, and Service resources.
+- The Kubernetes Deployment defaults to a single API replica because SQLite logs and admission/rate-limit state are process-local.
+- The Kubernetes manifests have not been applied to a live cluster as repository evidence.
+- No image registry release workflow is included yet.
 
 Production expectation:
 
-- Define deployment manifests.
-- Use environment-specific configuration.
-- Add readiness and liveness probes.
-- Add CI checks before deployment.
-- Separate development, staging, and production environments.
+- Publish versioned container images through CI.
+- Validate manifests with cluster-side dry runs or a real test cluster.
+- Use external durable storage before increasing API replicas.
+- Add environment-specific configuration and secret management.
+- Add HPA, ServiceMonitor, PodDisruptionBudget, and rollout policy when cluster validation is available.
 
 ## Security
 
@@ -196,4 +207,4 @@ The current project intentionally focuses on the core observability and reliabil
 
     inference request -> model backend -> structured log -> metrics -> alerts -> incident signals
 
-The next production step would not be "add a bigger model". It would be to improve operational controls: authentication, rate limiting, queueing, durable storage, tracing, deployment, and GPU scheduling.
+The remaining production gaps are mostly distributed-system concerns: external storage, cross-replica controls, managed deployment, long-term telemetry, cluster validation, and operational ownership.

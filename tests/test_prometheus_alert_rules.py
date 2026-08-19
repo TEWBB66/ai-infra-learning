@@ -33,3 +33,11 @@ def test_alert_rules_cover_latency_errors_and_admission_control():
     ]
     for metric in expected_metrics:
         assert metric in rules
+
+
+def test_latency_alert_uses_histogram_rate_window():
+    rules = Path("monitoring/prometheus-rules.yml").read_text(encoding="utf-8")
+
+    expected = "histogram_quantile(0.95, sum(rate(ai_inference_latency_ms_bucket[5m])) by (le)) > 800"
+    assert expected in rules
+    assert "sum by (le) (ai_inference_latency_ms_bucket)" not in rules

@@ -25,7 +25,7 @@ In a second terminal:
 
 Expected result:
 
-    39 passed, 1 warning
+    all tests passed, with at most the known FastAPI / Starlette TestClient warning
 
 The warning comes from FastAPI / Starlette TestClient and does not indicate a project failure.
 
@@ -118,7 +118,7 @@ The Grafana dashboard is provisioned from:
 
     monitoring/grafana/dashboards/ai_metrics_dashboard.json
 
-The dashboard includes service-level and model-level observability panels.
+The dashboard includes service-level, model-level, admission control, rate-limit, and histogram-based latency panels.
 
 ## Cleanup
 
@@ -144,7 +144,7 @@ Final local validation was completed on 2026-08-11.
 
 Docker Compose validation passed:
 
-- pytest returned 39 passed, 1 warning
+- pytest completed with all tests passing and the known TestClient warning
 - ai-metrics-api /health returned ok
 - ai-metrics-api /ready returned ready with backend=mock
 - mock-model-server /health returned ok
@@ -154,7 +154,7 @@ Docker Compose validation passed:
 - Prometheus target API reported ai-metrics-api health=up
 - Grafana /api/health returned 200 OK
 - Grafana dashboard search found AI Metrics API Dashboard
-- Grafana dashboard JSON contains 7 panels, including model-level request count, error rate, and p95 latency panels
+- Grafana dashboard JSON contains service, model, admission queue, rate-limit, and histogram latency panels
 
 Grafana API validation should use the admin password configured in docker-compose.yml.
 

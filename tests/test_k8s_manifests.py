@@ -20,7 +20,7 @@ def test_deployment_exposes_health_readiness_and_metrics():
 
     required = [
         "kind: Deployment",
-        "replicas: 2",
+        "replicas: 1",
         "containerPort: 8000",
         "prometheus.io/scrape: \"true\"",
         "prometheus.io/path: \"/metrics/prometheus\"",
@@ -78,3 +78,16 @@ def test_service_targets_api_container_port():
     assert "type: ClusterIP" in text
     assert "port: 8000" in text
     assert "targetPort: http" in text
+
+
+def test_k8s_defaults_match_documented_single_replica_boundary():
+    deployment = Path("k8s/deployment.yaml").read_text(encoding="utf-8")
+    readme = Path("README.md").read_text(encoding="utf-8")
+    production_gaps = Path("docs/PRODUCTION_GAPS.md").read_text(encoding="utf-8")
+
+    assert "replicas: 1" in deployment
+    assert "replicas: 2" not in deployment
+    assert "one API replica by default" in readme
+    assert "single API replica" in production_gaps
+    assert "not been applied to a live cluster" in production_gaps
+    assert "No image registry release workflow is included yet." in production_gaps

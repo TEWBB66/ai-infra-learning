@@ -55,6 +55,9 @@ def test_readme_documents_serving_controls():
         "API-side backpressure",
         "LOG_BACKEND=file|sqlite",
         "RATE_LIMIT_ENABLED=false",
+        "READINESS_CHECK_BACKEND=false",
+        "MAX_QUEUE_SIZE=32",
+        "QUEUE_TIMEOUT_MS=500",
         "ai_inference_rate_limit_rejected_total",
         "ai_inference_queue_rejected_total",
     ]
@@ -102,3 +105,23 @@ def test_public_docs_do_not_contain_private_process_terms():
         text = path.read_text(encoding="utf-8")
         for term in blocked_terms:
             assert term not in text, f"{path} contains private process term"
+
+
+def test_public_docs_describe_current_deployment_boundary():
+    readme = Path("README.md").read_text(encoding="utf-8")
+    gaps = Path("docs/PRODUCTION_GAPS.md").read_text(encoding="utf-8")
+
+    assert "Kubernetes" in readme
+    assert "manifests" in readme
+    assert "one API replica by default" in readme
+    assert "Live Kubernetes cluster deployment evidence" in readme
+
+    for snippet in [
+        "Kubernetes example manifests include ConfigMap, Secret template, PVC, Deployment, and Service resources.",
+        "defaults to a single API replica",
+        "have not been applied to a live cluster",
+        "No image registry release workflow is included yet.",
+        "ServiceMonitor",
+        "external durable storage",
+    ]:
+        assert snippet in gaps
