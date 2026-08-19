@@ -8,6 +8,7 @@ def test_project_evidence_files_exist():
         "docs/reliability_experiments.md",
         "docs/MODEL_BACKEND_PROTOCOL.md",
         "reports/vllm_benchmark_2026_08_18/README.md",
+        "reports/vllm_admission_control_2026_08_19/README.md",
         "monitoring/prometheus-rules.yml",
     ]
 

@@ -387,3 +387,4 @@ Current limits are intentional and documented: single GPU, single API instance, 
 ## Operations
 
 - [Alerting runbook](docs/ALERTING_RUNBOOK.md)
+- [Real vLLM admission control benchmark](reports/vllm_admission_control_2026_08_19/README.md)

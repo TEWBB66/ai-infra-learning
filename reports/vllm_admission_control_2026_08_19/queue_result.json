@@ -1,0 +1,272 @@
+{
+  "config": {
+    "url": "http://127.0.0.1:8000/v1/infer",
+    "count": 30,
+    "concurrency": 10,
+    "timeout": 120.0,
+    "model": "qwen2.5-7b",
+    "tokens_in": 256,
+    "prompt_profile": "medium",
+    "max_tokens": 128,
+    "temperature": 0.0
+  },
+  "summary": {
+    "total_requests": 30,
+    "http_status_counts": {
+      "200": 30
+    },
+    "logical_status_counts": {
+      "200": 30
+    },
+    "rejected_count_429": 0,
+    "avg_client_latency_ms": 3077.51,
+    "p95_client_latency_ms": 3634.25,
+    "p99_client_latency_ms": 3642.12,
+    "elapsed_seconds": 10.627,
+    "throughput_req_per_sec": 2.823,
+    "output_tokens_per_sec": 361.342,
+    "total_output_tokens": 3840
+  },
+  "results": [
+    {
+      "request_index": 0,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 826.5246390365064,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 1,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 825.5757410079241,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 2,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 1546.1992099881172,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 3,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 1548.6742679495364,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 4,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 2253.4709019819275,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 5,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 2254.734519054182,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 6,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 2945.816449006088,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 7,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 2944.1604459425434,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 8,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3634.253475931473,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 9,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3642.1189949614927,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 10,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3527.1857080515474,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 11,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3529.691572068259,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 12,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3525.671066949144,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 13,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3518.737841048278,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 14,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3497.101627057418,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 15,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3491.241430048831,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 16,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3495.4076890135184,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 17,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3497.7961539989337,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 18,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3513.5906010400504,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 19,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3508.9875500416383,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 20,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3500.927636050619,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 21,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3504.0432868991047,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 22,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3481.6432029474527,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 23,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3472.2417059820145,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 24,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3487.7583329798654,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 25,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3490.276774042286,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 26,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3472.7215439779684,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 27,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3469.88336998038,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 28,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3458.6754069896415,
+      "tokens_out": 128,
+      "error_detail": null
+    },
+    {
+      "request_index": 29,
+      "http_status": 200,
+      "logical_status": 200,
+      "client_latency_ms": 3460.320301936008,
+      "tokens_out": 128,
+      "error_detail": null
+    }
+  ]
+}
