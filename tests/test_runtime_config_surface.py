@@ -5,6 +5,8 @@ from projects.ai_metrics_api import config
 
 REQUIRED_ENV_KEYS = [
     "INFERENCE_LOG_PATH",
+    "SQLITE_LOG_PATH",
+    "LOG_BACKEND",
     "MODEL_BACKEND",
     "MOCK_MODEL_SERVER_URL",
     "VLLM_BASE_URL",
@@ -37,6 +39,8 @@ def test_compose_passes_documented_runtime_config():
 
 def test_config_module_exposes_api_runtime_settings():
     assert config.MODEL_BACKEND == "mock"
+    assert config.LOG_BACKEND in {"file", "sqlite"}
+    assert config.SQLITE_LOG_PATH
     assert config.VLLM_BASE_URL
     assert config.VLLM_MODEL
     assert config.MAX_IN_FLIGHT_REQUESTS >= 1

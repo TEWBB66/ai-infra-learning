@@ -1,6 +1,8 @@
 import os
 
 LOG_PATH = os.getenv("INFERENCE_LOG_PATH", "data/day02/inference.log")
+LOG_BACKEND = os.getenv("LOG_BACKEND", "file").lower()
+SQLITE_LOG_PATH = os.getenv("SQLITE_LOG_PATH", "data/day02/inference.sqlite3")
 
 DEFAULT_SLOW_THRESHOLD_MS = 200
 

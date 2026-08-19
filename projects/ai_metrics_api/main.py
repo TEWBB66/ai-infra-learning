@@ -9,13 +9,14 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 from fastapi.responses import PlainTextResponse
 
-from projects.log_analyzer.analyze_logs import analyze_logs, parse_log_line
 from projects.ai_metrics_api.model_client import call_model_server
 
 from projects.ai_metrics_api.config import (
     ALLOWED_FORCE_STATUS_CODES,
     DEFAULT_SLOW_THRESHOLD_MS,
     LOG_PATH,
+    LOG_BACKEND,
+    SQLITE_LOG_PATH,
     MAX_IN_FLIGHT_REQUESTS,
     QUEUE_TIMEOUT_MS,
     MAX_QUEUE_SIZE,
@@ -37,7 +38,7 @@ from projects.ai_metrics_api.config import (
     SERVICE_SLOW_REQUEST_CRITICAL_COUNT,
     SERVICE_SLOW_REQUEST_WARNING_COUNT,
 )
-from projects.ai_metrics_api.prometheus_histogram import build_latency_histogram_prometheus
+from projects.ai_metrics_api.log_store import InferenceLogStore
 
 app = FastAPI()
 
@@ -146,10 +147,18 @@ def format_log_line(
     )
 
 
+def get_log_store() -> InferenceLogStore:
+    return InferenceLogStore(
+        backend=LOG_BACKEND,
+        log_path=LOG_PATH,
+        sqlite_path=SQLITE_LOG_PATH,
+    )
+
+
 def append_log_line(log_line: str) -> None:
-    with open(LOG_PATH, "a", encoding="utf-8") as f:
-        f.write(log_line + "\n")
-        
+    get_log_store().append(log_line)
+
+
 
 def add_alert(alerts, level, scope, metric, message, actual, threshold):
     alerts.append({
@@ -253,14 +262,7 @@ class InferRequest(BaseModel):
     force_status: Optional[int] = None
 
 def load_records():
-    records = []
-
-    with open(LOG_PATH, "r", encoding="utf-8") as f:
-        for line in f:
-            record = parse_log_line(line)
-            records.append(record)
-
-    return records
+    return get_log_store().load_records()
 
 @app.get("/health")
 def health_check():
@@ -379,11 +381,11 @@ def mock_infer(request: InferRequest):
 
 @app.get("/metrics/logs")
 def get_log_metrics():
-    return analyze_logs(LOG_PATH)
+    return get_log_store().analyze()
 
 @app.get("/metrics/models")
 def get_model_metrics(model_name: Optional[str] = None):
-    metrics = analyze_logs(LOG_PATH)
+    metrics = get_log_store().analyze()
     metrics_by_model = metrics["metrics_by_model"]
     if model_name is None:
         return {
@@ -449,7 +451,7 @@ def get_error_requests(status_code: Optional[int] = None):
 
 @app.get("/metrics/alerts")
 def get_alerts():
-    metrics = analyze_logs(LOG_PATH)
+    metrics = get_log_store().analyze()
     return build_alerts(metrics)
 
 def build_incident_report(metrics, alerts_response):
@@ -509,7 +511,7 @@ def build_incident_report(metrics, alerts_response):
 
 @app.get("/metrics/incidents")
 def get_incident_report():
-    metrics = analyze_logs(LOG_PATH)
+    metrics = get_log_store().analyze()
     alerts_response = get_alerts()
     return build_incident_report(metrics, alerts_response)
 
@@ -534,7 +536,7 @@ def _snapshot_inference_gate(gate) -> dict:
 
 @app.get("/metrics/prometheus", response_class=PlainTextResponse)
 def get_prometheus_metrics():
-    metrics = analyze_logs(LOG_PATH)
+    metrics = get_log_store().analyze()
     gate_metrics = _snapshot_inference_gate(INFERENCE_GATE)
     admission_mode_label = _escape_prometheus_label(gate_metrics["admission_mode"])
 
@@ -632,5 +634,5 @@ def get_prometheus_metrics():
             f'ai_inference_model_p95_latency_ms{{model="{model_label}"}} {model_metrics["p95_latency_ms"]}'
         )
 
-    lines.extend(build_latency_histogram_prometheus(LOG_PATH))
+    lines.extend(get_log_store().build_latency_histogram_prometheus())
     return "\n".join(lines) + "\n"
